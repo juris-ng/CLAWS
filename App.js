@@ -1,137 +1,48 @@
-import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
-import AuthScreen from './app/screens/AuthScreen';
-import MemberHomeScreen from './app/screens/MemberHomeScreen';
-import { supabase } from './supabase';
-import { NetworkMonitor } from './utils/networkMonitor';
-import { PushNotificationService } from './utils/pushNotificationService';
+import { StatusBar } from 'expo-status-bar';
+import { StyleSheet, Text, View } from 'react-native';
 
 export default function App() {
-  const [session, setSession] = useState(null);
-  const [profile, setProfile] = useState(null);
-  const [loading, setLoading] = useState(true);
-  
-  const notificationListener = useRef();
-  const responseListener = useRef();
-  const networkUnsubscribe = useRef();
-
-  useEffect(() => {
-    initializeApp();
-
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      if (session) {
-        loadUserProfile(session.user);
-      }
-      setLoading(false);
-    });
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      if (session) {
-        loadUserProfile(session.user);
-      } else {
-        setProfile(null);
-      }
-    });
-
-    return () => {
-      subscription.unsubscribe();
-      cleanupNotificationListeners();
-      if (networkUnsubscribe.current) {
-        networkUnsubscribe.current();
-      }
-    };
-  }, []);
-
-  const initializeApp = async () => {
-    networkUnsubscribe.current = NetworkMonitor.initialize((isConnected, type) => {
-      console.log('Network changed:', isConnected, type);
-    });
-
-    notificationListener.current = PushNotificationService.addNotificationListener(
-      (notification) => {
-        console.log('Notification received:', notification);
-      }
-    );
-
-    responseListener.current = PushNotificationService.addNotificationResponseListener(
-      (response) => {
-        console.log('Notification tapped:', response);
-        const data = response.notification.request.content.data;
-        if (data.petitionId) {
-          console.log('Navigate to petition:', data.petitionId);
-        }
-      }
-    );
-  };
-
-  const cleanupNotificationListeners = () => {
-    if (notificationListener.current && responseListener.current) {
-      PushNotificationService.removeNotificationListeners([
-        notificationListener.current,
-        responseListener.current,
-      ]);
-    }
-  };
-
-  const loadUserProfile = async (user) => {
-    const { data, error } = await supabase
-      .from('members')
-      .select('*')
-      .eq('id', user.id)
-      .single();
-
-    if (data) {
-      setProfile(data);
-      
-      const pushToken = await PushNotificationService.registerForPushNotifications();
-      if (pushToken) {
-        await PushNotificationService.savePushToken(user.id, pushToken);
-      }
-    }
-  };
-
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    setSession(null);
-    setProfile(null);
-  };
-
-  if (loading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#0066FF" />
-        <Text style={styles.loadingText}>Loading...</Text>
-      </View>
-    );
-  }
-
-  if (!session) {
-    return <AuthScreen />;
-  }
-
   return (
-    <MemberHomeScreen
-      user={session.user}
-      profile={profile}
-      onLogout={handleLogout}
-    />
+    <View style={styles.container}>
+      <StatusBar style="auto" />
+      <Text style={styles.title}>✅ App Works!</Text>
+      <Text style={styles.subtitle}>Governance App</Text>
+      <Text style={styles.text}>The build is successful.</Text>
+      <Text style={styles.text}>Supabase is connected.</Text>
+      <Text style={styles.info}>
+        Next: Debug screen imports
+      </Text>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  loadingContainer: {
+  container: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F5F5F5',
+    padding: 20,
   },
-  loadingText: {
-    marginTop: 16,
+  title: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    color: '#0066FF',
+    marginBottom: 16,
+  },
+  subtitle: {
+    fontSize: 20,
+    color: '#333',
+    marginBottom: 24,
+  },
+  text: {
     fontSize: 16,
-    color: '#8E8E93',
+    color: '#666',
+    marginBottom: 8,
+  },
+  info: {
+    fontSize: 14,
+    color: '#999',
+    marginTop: 32,
   },
 });
