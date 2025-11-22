@@ -1,7 +1,9 @@
 // utils/geminiAIService.js
 import axios from 'axios';
-import CONFIG from '../config';
+import Constants from 'expo-constants';
 
+// Get Gemini API key from environment variables
+const GEMINI_API_KEY = Constants.expoConfig?.extra?.geminiApiKey;
 const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
 
 const makeRequestWithRetry = async (payload, maxRetries = 3) => {
@@ -13,7 +15,7 @@ const makeRequestWithRetry = async (payload, maxRetries = 3) => {
         {
           headers: {
             'Content-Type': 'application/json',
-            'x-goog-api-key': CONFIG.GEMINI_API_KEY
+            'x-goog-api-key': GEMINI_API_KEY
           },
           timeout: 30000
         }
@@ -52,8 +54,8 @@ function handleGeminiError(error, contextMsg) {
 export const GeminiAIService = {
   // 1. Improve Petition
   improvePetition: async (petitionText) => {
-    if (!CONFIG.GEMINI_API_KEY) {
-      return { success: false, error: 'AI service not configured. Please add your API key to config.js' };
+    if (!GEMINI_API_KEY) {
+      return { success: false, error: 'AI service not configured. Please add your API key to environment variables' };
     }
     const payload = {
       contents: [{
@@ -81,8 +83,8 @@ Improved petition:`
 
   // 2. Suggest Petition Titles
   suggestTitles: async (description) => {
-    if (!CONFIG.GEMINI_API_KEY) {
-      return { success: false, error: 'AI service not configured. Please add your API key to config.js' };
+    if (!GEMINI_API_KEY) {
+      return { success: false, error: 'AI service not configured. Please add your API key to environment variables' };
     }
     const payload = {
       contents: [{
@@ -110,8 +112,8 @@ Titles:`
 
   // 3. Analyze Sentiment
   analyzeSentiment: async (text) => {
-    if (!CONFIG.GEMINI_API_KEY) {
-      return { success: false, error: 'AI service not configured. Please add your API key to config.js' };
+    if (!GEMINI_API_KEY) {
+      return { success: false, error: 'AI service not configured. Please add your API key to environment variables' };
     }
     const payload = {
       contents: [{
@@ -134,8 +136,8 @@ Sentiment:`
 
   // 4. Categorize Petition
   categorizePetition: async (petitionText) => {
-    if (!CONFIG.GEMINI_API_KEY) {
-      return { success: false, error: 'AI service not configured. Please add your API key to config.js' };
+    if (!GEMINI_API_KEY) {
+      return { success: false, error: 'AI service not configured. Please add your API key to environment variables' };
     }
     const payload = {
       contents: [{
@@ -158,8 +160,8 @@ Category:`
 
   // 5. Summarize Texts
   summarizeText: async (text, maxLength = 3) => {
-    if (!CONFIG.GEMINI_API_KEY) {
-      return { success: false, error: 'AI service not configured. Please add your API key to config.js' };
+    if (!GEMINI_API_KEY) {
+      return { success: false, error: 'AI service not configured. Please add your API key to environment variables' };
     }
     const payload = {
       contents: [{
@@ -183,8 +185,8 @@ Summary:`
 
   // 6. Generate Dashboard Insight/Recommendation
   generateInsight: async (context) => {
-    if (!CONFIG.GEMINI_API_KEY) {
-      return { success: false, error: 'AI service not configured. Please add your API key to config.js' };
+    if (!GEMINI_API_KEY) {
+      return { success: false, error: 'AI service not configured. Please add your API key to environment variables' };
     }
     const payload = {
       contents: [{
@@ -208,8 +210,8 @@ Insight:`
 
   // 7. Predict Trends/Simulate Scenarios
   predictTrend: async (historicalData, metric, intervention) => {
-    if (!CONFIG.GEMINI_API_KEY) {
-      return { success: false, error: 'AI service not configured. Please add your API key to config.js' };
+    if (!GEMINI_API_KEY) {
+      return { success: false, error: 'AI service not configured. Please add your API key to environment variables' };
     }
     const payload = {
       contents: [{
@@ -234,8 +236,8 @@ Prediction:`
 
   // 8. Toxicity/Content Moderation
   detectToxicity: async (text) => {
-    if (!CONFIG.GEMINI_API_KEY) {
-      return { success: false, error: 'AI service not configured. Please add your API key to config.js' };
+    if (!GEMINI_API_KEY) {
+      return { success: false, error: 'AI service not configured. Please add your API key to environment variables' };
     }
     const payload = {
       contents: [{
@@ -259,8 +261,8 @@ Label:`
 
   // 9. Assistant Q&A
   answerQuestion: async (question, context = null) => {
-    if (!CONFIG.GEMINI_API_KEY) {
-      return { success: false, error: 'AI service not configured. Please add your API key to config.js' };
+    if (!GEMINI_API_KEY) {
+      return { success: false, error: 'AI service not configured. Please add your API key to environment variables' };
     }
     const prompt = context
       ? `Context: ${JSON.stringify(context)}\nQuestion: ${question}\nAnswer:`
@@ -283,8 +285,8 @@ Label:`
 
   // 10. Personalized Nudge
   generateNudge: async (userStats) => {
-    if (!CONFIG.GEMINI_API_KEY) {
-      return { success: false, error: 'AI service not configured. Please add your API key to config.js' };
+    if (!GEMINI_API_KEY) {
+      return { success: false, error: 'AI service not configured. Please add your API key to environment variables' };
     }
     const payload = {
       contents: [{
@@ -308,8 +310,8 @@ Nudge:`
 
   // 11. AI Policy Drafting
   draftPolicy: async (topic, context = null) => {
-    if (!CONFIG.GEMINI_API_KEY) {
-      return { success: false, error: 'AI service not configured. Please add your API key to config.js' };
+    if (!GEMINI_API_KEY) {
+      return { success: false, error: 'AI service not configured. Please add your API key to environment variables' };
     }
     const prompt = context
       ? `Policy topic: ${topic}\nContext: ${context}\nPolicy:`
@@ -335,8 +337,8 @@ ${prompt}`
 
   // 12. Personalized Petition Feed Ranking
   rankPetitions: async ({ profile, petitions }) => {
-    if (!CONFIG.GEMINI_API_KEY) {
-      return { success: false, error: 'AI service not configured. Please add your API key to config.js' };
+    if (!GEMINI_API_KEY) {
+      return { success: false, error: 'AI service not configured. Please add your API key to environment variables' };
     }
     const payload = {
       contents: [{
@@ -378,8 +380,8 @@ RankedPetitionIds:
 
   // 13. Personalized Smart Filter/Search Suggestions
   suggestPetitionFilters: async (profile, petitions, recentSearches = []) => {
-    if (!CONFIG.GEMINI_API_KEY) {
-      return { success: false, error: 'AI service not configured. Please add your API key to config.js' };
+    if (!GEMINI_API_KEY) {
+      return { success: false, error: 'AI service not configured. Please add your API key to environment variables' };
     }
     const payload = {
       contents: [{

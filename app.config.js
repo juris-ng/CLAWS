@@ -27,6 +27,7 @@ export default {
     extra: {
       supabaseUrl: process.env.SUPABASE_URL,
       supabaseAnonKey: process.env.SUPABASE_ANON_KEY,
+      geminiApiKey: process.env.GEMINI_API_KEY,  // ✅ Add this line
       eas: {
         projectId: "536a5db5-7894-4489-83ae-e0f5e7fbc847"
       }
