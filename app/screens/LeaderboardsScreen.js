@@ -1,13 +1,17 @@
 import { useEffect, useState } from 'react';
 import {
-    RefreshControl,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  Platform,
+  RefreshControl,
+  SafeAreaView,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { supabase } from '../../supabase';
+
 
 export default function LeaderboardsScreen({ user, profile }) {
   const [activeTab, setActiveTab] = useState('Personal');
@@ -17,14 +21,17 @@ export default function LeaderboardsScreen({ user, profile }) {
   const [badges, setBadges] = useState([]);
   const [loading, setLoading] = useState(false);
 
+
   const tabs = ['Personal', 'Body', 'Global'];
   const timeFilters = ['This Week', 'This Month', 'All Time'];
   const sectorFilters = ['Education', 'Healthcare', 'Environment', 'Housing'];
+
 
   useEffect(() => {
     loadLeaderboard();
     loadBadges();
   }, [activeTab]);
+
 
   const loadLeaderboard = async () => {
     setLoading(true);
@@ -39,8 +46,10 @@ export default function LeaderboardsScreen({ user, profile }) {
       setTopMembers(data);
     }
 
+
     setLoading(false);
   };
+
 
   const loadBadges = () => {
     setBadges([
@@ -79,6 +88,7 @@ export default function LeaderboardsScreen({ user, profile }) {
     ]);
   };
 
+
   const renderLeaderboardItem = (member, index) => {
     const isCurrentUser = member.id === user.id;
     const rankColor = index === 0 ? '#FFD700' : index === 1 ? '#C0C0C0' : index === 2 ? '#CD7F32' : '#8E8E93';
@@ -115,6 +125,7 @@ export default function LeaderboardsScreen({ user, profile }) {
     );
   };
 
+
   const renderBadge = (badge) => (
     <View 
       key={badge.id} 
@@ -136,126 +147,141 @@ export default function LeaderboardsScreen({ user, profile }) {
     </View>
   );
 
+
   return (
-    <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Leaderboards</Text>
-        <View style={styles.headerRight}>
-          <TouchableOpacity style={styles.notificationButton}>
-            <Text style={styles.notificationIcon}>🔔</Text>
-          </TouchableOpacity>
-          <TouchableOpacity>
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>
-                {profile?.full_name?.charAt(0).toUpperCase() || 'M'}
-              </Text>
-            </View>
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      <ScrollView
-        refreshControl={
-          <RefreshControl refreshing={loading} onRefresh={loadLeaderboard} />
-        }
-      >
-        {/* Tabs */}
-        <View style={styles.tabsContainer}>
-          {tabs.map((tab) => (
-            <TouchableOpacity
-              key={tab}
-              style={[
-                styles.tab,
-                activeTab === tab && styles.tabActive
-              ]}
-              onPress={() => setActiveTab(tab)}
-            >
-              <Text style={[
-                styles.tabText,
-                activeTab === tab && styles.tabTextActive
-              ]}>
-                {tab === 'Personal' ? '👤' : tab === 'Body' ? '👥' : '🌍'} {tab}
-              </Text>
+    <SafeAreaView style={styles.safeArea}>
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+      <View style={styles.container}>
+        {/* Header */}
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Leaderboards</Text>
+          <View style={styles.headerRight}>
+            <TouchableOpacity style={styles.notificationButton}>
+              <Text style={styles.notificationIcon}>🔔</Text>
             </TouchableOpacity>
-          ))}
-        </View>
-
-        {/* Filter by Timeframe */}
-        <View style={styles.filterSection}>
-          <Text style={styles.filterLabel}>Filter by Timeframe</Text>
-          <ScrollView 
-            horizontal 
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.filterChips}
-          >
-            {timeFilters.map((filter) => (
-              <TouchableOpacity
-                key={filter}
-                style={[
-                  styles.filterChip,
-                  timeFilter === filter && styles.filterChipActive
-                ]}
-                onPress={() => setTimeFilter(filter)}
-              >
-                <Text style={[
-                  styles.filterChipText,
-                  timeFilter === filter && styles.filterChipTextActive
-                ]}>
-                  {filter === 'This Week' ? '📅' : filter === 'This Month' ? '📊' : '⏰'} {filter}
+            <TouchableOpacity>
+              <View style={styles.avatar}>
+                <Text style={styles.avatarText}>
+                  {profile?.full_name?.charAt(0).toUpperCase() || 'M'}
                 </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
-
-        {/* Filter by Sector */}
-        <View style={styles.filterSection}>
-          <Text style={styles.filterLabel}>Filter by Sector</Text>
-          <ScrollView 
-            horizontal 
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.filterChips}
-          >
-            {sectorFilters.map((filter) => (
-              <TouchableOpacity
-                key={filter}
-                style={[
-                  styles.filterChip,
-                  sectorFilter === filter && styles.filterChipActive
-                ]}
-                onPress={() => setSectorFilter(filter)}
-              >
-                <Text style={[
-                  styles.filterChipText,
-                  sectorFilter === filter && styles.filterChipTextActive
-                ]}>
-                  {filter === 'Education' ? '📚' : filter === 'Healthcare' ? '🏥' : filter === 'Environment' ? '🌱' : '🏠'} {filter}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
-
-        {/* Top Members */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Top Members</Text>
-          {topMembers.map((member, index) => renderLeaderboardItem(member, index))}
-        </View>
-
-        {/* Your Unlocked Badges */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Your Unlocked Badges</Text>
-          <View style={styles.badgesGrid}>
-            {badges.map(renderBadge)}
+              </View>
+            </TouchableOpacity>
           </View>
         </View>
-      </ScrollView>
-    </View>
+
+
+        <ScrollView
+          refreshControl={
+            <RefreshControl refreshing={loading} onRefresh={loadLeaderboard} />
+          }
+        >
+          {/* Tabs */}
+          <View style={styles.tabsContainer}>
+            {tabs.map((tab) => (
+              <TouchableOpacity
+                key={tab}
+                style={[
+                  styles.tab,
+                  activeTab === tab && styles.tabActive
+                ]}
+                onPress={() => setActiveTab(tab)}
+              >
+                <Text style={[
+                  styles.tabText,
+                  activeTab === tab && styles.tabTextActive
+                ]}>
+                  {tab === 'Personal' ? '👤' : tab === 'Body' ? '👥' : '🌍'} {tab}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+
+          {/* Filter by Timeframe */}
+          <View style={styles.filterSection}>
+            <Text style={styles.filterLabel}>Filter by Timeframe</Text>
+            <ScrollView 
+              horizontal 
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.filterChips}
+            >
+              {timeFilters.map((filter) => (
+                <TouchableOpacity
+                  key={filter}
+                  style={[
+                    styles.filterChip,
+                    timeFilter === filter && styles.filterChipActive
+                  ]}
+                  onPress={() => setTimeFilter(filter)}
+                >
+                  <Text style={[
+                    styles.filterChipText,
+                    timeFilter === filter && styles.filterChipTextActive
+                  ]}>
+                    {filter === 'This Week' ? '📅' : filter === 'This Month' ? '📊' : '⏰'} {filter}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+
+
+          {/* Filter by Sector */}
+          <View style={styles.filterSection}>
+            <Text style={styles.filterLabel}>Filter by Sector</Text>
+            <ScrollView 
+              horizontal 
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.filterChips}
+            >
+              {sectorFilters.map((filter) => (
+                <TouchableOpacity
+                  key={filter}
+                  style={[
+                    styles.filterChip,
+                    sectorFilter === filter && styles.filterChipActive
+                  ]}
+                  onPress={() => setSectorFilter(filter)}
+                >
+                  <Text style={[
+                    styles.filterChipText,
+                    sectorFilter === filter && styles.filterChipTextActive
+                  ]}>
+                    {filter === 'Education' ? '📚' : filter === 'Healthcare' ? '🏥' : filter === 'Environment' ? '🌱' : '🏠'} {filter}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+
+
+          {/* Top Members */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Top Members</Text>
+            {topMembers.map((member, index) => renderLeaderboardItem(member, index))}
+          </View>
+
+
+          {/* Your Unlocked Badges */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Your Unlocked Badges</Text>
+            <View style={styles.badgesGrid}>
+              {badges.map(renderBadge)}
+            </View>
+          </View>
+        </ScrollView>
+      </View>
+    </SafeAreaView>
   );
 }
 
+
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
+  },
   container: {
     flex: 1,
     backgroundColor: '#F2F2F7',
@@ -263,7 +289,7 @@ const styles = StyleSheet.create({
   header: {
     backgroundColor: '#FFFFFF',
     paddingHorizontal: 20,
-    paddingTop: 50,
+    paddingTop: 15,
     paddingBottom: 15,
     flexDirection: 'row',
     justifyContent: 'space-between',

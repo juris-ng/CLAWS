@@ -1,19 +1,25 @@
 import React, { useState } from 'react';
 import {
-    ActivityIndicator,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput, TouchableOpacity,
-    View
+  ActivityIndicator,
+  Platform,
+  SafeAreaView,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { supabase } from '../../supabase';
+
 
 export default function ChangePassword({ onBack }) {
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
+
 
   const validatePassword = (password) => {
     // At least 8 characters, 1 uppercase, 1 lowercase, 1 number
@@ -22,8 +28,10 @@ export default function ChangePassword({ onBack }) {
     const hasLowerCase = /[a-z]/.test(password);
     const hasNumber = /[0-9]/.test(password);
 
+
     return minLength && hasUpperCase && hasLowerCase && hasNumber;
   };
+
 
   const handleChangePassword = async () => {
     // Validation
@@ -32,15 +40,18 @@ export default function ChangePassword({ onBack }) {
       return;
     }
 
+
     if (newPassword !== confirmPassword) {
       alert('New passwords do not match');
       return;
     }
 
+
     if (currentPassword === newPassword) {
       alert('New password must be different from current password');
       return;
     }
+
 
     if (!validatePassword(newPassword)) {
       alert(
@@ -52,14 +63,18 @@ export default function ChangePassword({ onBack }) {
       return;
     }
 
+
     setLoading(true);
+
 
     // Update password
     const { error } = await supabase.auth.updateUser({
       password: newPassword,
     });
 
+
     setLoading(false);
+
 
     if (error) {
       alert('Failed to change password: ' + error.message);
@@ -72,8 +87,10 @@ export default function ChangePassword({ onBack }) {
     }
   };
 
+
   const getPasswordStrength = () => {
     if (!newPassword) return { label: '', color: '#ccc', width: '0%' };
+
 
     const minLength = newPassword.length >= 8;
     const hasUpperCase = /[A-Z]/.test(newPassword);
@@ -81,7 +98,9 @@ export default function ChangePassword({ onBack }) {
     const hasNumber = /[0-9]/.test(newPassword);
     const hasSpecial = /[!@#$%^&*(),.?":{}|<>]/.test(newPassword);
 
+
     const strength = [minLength, hasUpperCase, hasLowerCase, hasNumber, hasSpecial].filter(Boolean).length;
+
 
     if (strength <= 2) return { label: 'Weak', color: '#dc3545', width: '33%' };
     if (strength === 3) return { label: 'Fair', color: '#ffc107', width: '50%' };
@@ -89,99 +108,117 @@ export default function ChangePassword({ onBack }) {
     return { label: 'Strong', color: '#28a745', width: '100%' };
   };
 
+
   const strength = getPasswordStrength();
 
+
   return (
-    <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={onBack} style={styles.backButton}>
-          <Text style={styles.backText}>← Cancel</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Change Password</Text>
-        <View style={styles.backButton} />
-      </View>
-
-      <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
-        {/* Security Icon */}
-        <View style={styles.iconContainer}>
-          <Text style={styles.icon}>🔒</Text>
-          <Text style={styles.subtitle}>Update your password to keep your account secure</Text>
+    <SafeAreaView style={styles.safeArea}>
+      <StatusBar barStyle="light-content" backgroundColor="#007bff" />
+      <View style={styles.container}>
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity onPress={onBack} style={styles.backButton}>
+            <Text style={styles.backText}>← Cancel</Text>
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Change Password</Text>
+          <View style={styles.backButton} />
         </View>
 
-        {/* Form */}
-        <View style={styles.form}>
-          <Text style={styles.label}>Current Password</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Enter your current password"
-            value={currentPassword}
-            onChangeText={setCurrentPassword}
-            secureTextEntry={true}
-            autoCapitalize="none"
-          />
 
-          <Text style={styles.label}>New Password</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Enter a new password"
-            value={newPassword}
-            onChangeText={setNewPassword}
-            secureTextEntry={true}
-            autoCapitalize="none"
-          />
-
-          {/* Password Strength Indicator */}
-          {newPassword.length > 0 && (
-            <View style={styles.strengthContainer}>
-              <View style={styles.strengthBar}>
-                <View style={[styles.strengthFill, { width: strength.width, backgroundColor: strength.color }]} />
-              </View>
-              <Text style={[styles.strengthLabel, { color: strength.color }]}>
-                {strength.label}
-              </Text>
-            </View>
-          )}
-
-          <Text style={styles.label}>Confirm New Password</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Repeat your new password"
-            value={confirmPassword}
-            onChangeText={setConfirmPassword}
-            secureTextEntry={true}
-            autoCapitalize="none"
-          />
-
-          {/* Password Requirements */}
-          <View style={styles.requirementsBox}>
-            <Text style={styles.requirementsTitle}>Password Requirements:</Text>
-            <Text style={styles.requirement}>• At least 8 characters</Text>
-            <Text style={styles.requirement}>• One uppercase letter (A-Z)</Text>
-            <Text style={styles.requirement}>• One lowercase letter (a-z)</Text>
-            <Text style={styles.requirement}>• One number (0-9)</Text>
-            <Text style={styles.requirementOptional}>• Special characters (recommended)</Text>
+        <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
+          {/* Security Icon */}
+          <View style={styles.iconContainer}>
+            <Text style={styles.icon}>🔒</Text>
+            <Text style={styles.subtitle}>Update your password to keep your account secure</Text>
           </View>
-        </View>
 
-        {/* Change Password Button */}
-        <TouchableOpacity
-          style={[styles.changeButton, loading && styles.changeButtonDisabled]}
-          onPress={handleChangePassword}
-          disabled={loading}
-        >
-          {loading ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.changeButtonText}>Change Password</Text>
-          )}
-        </TouchableOpacity>
-      </ScrollView>
-    </View>
+
+          {/* Form */}
+          <View style={styles.form}>
+            <Text style={styles.label}>Current Password</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Enter your current password"
+              value={currentPassword}
+              onChangeText={setCurrentPassword}
+              secureTextEntry={true}
+              autoCapitalize="none"
+            />
+
+
+            <Text style={styles.label}>New Password</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Enter a new password"
+              value={newPassword}
+              onChangeText={setNewPassword}
+              secureTextEntry={true}
+              autoCapitalize="none"
+            />
+
+
+            {/* Password Strength Indicator */}
+            {newPassword.length > 0 && (
+              <View style={styles.strengthContainer}>
+                <View style={styles.strengthBar}>
+                  <View style={[styles.strengthFill, { width: strength.width, backgroundColor: strength.color }]} />
+                </View>
+                <Text style={[styles.strengthLabel, { color: strength.color }]}>
+                  {strength.label}
+                </Text>
+              </View>
+            )}
+
+
+            <Text style={styles.label}>Confirm New Password</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Repeat your new password"
+              value={confirmPassword}
+              onChangeText={setConfirmPassword}
+              secureTextEntry={true}
+              autoCapitalize="none"
+            />
+
+
+            {/* Password Requirements */}
+            <View style={styles.requirementsBox}>
+              <Text style={styles.requirementsTitle}>Password Requirements:</Text>
+              <Text style={styles.requirement}>• At least 8 characters</Text>
+              <Text style={styles.requirement}>• One uppercase letter (A-Z)</Text>
+              <Text style={styles.requirement}>• One lowercase letter (a-z)</Text>
+              <Text style={styles.requirement}>• One number (0-9)</Text>
+              <Text style={styles.requirementOptional}>• Special characters (recommended)</Text>
+            </View>
+          </View>
+
+
+          {/* Change Password Button */}
+          <TouchableOpacity
+            style={[styles.changeButton, loading && styles.changeButtonDisabled]}
+            onPress={handleChangePassword}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.changeButtonText}>Change Password</Text>
+            )}
+          </TouchableOpacity>
+        </ScrollView>
+      </View>
+    </SafeAreaView>
   );
 }
 
+
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#007bff',
+    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
+  },
   container: {
     flex: 1,
     backgroundColor: '#f5f5f5',

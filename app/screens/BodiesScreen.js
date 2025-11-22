@@ -1,54 +1,52 @@
-import React, { useEffect, useState } from 'react';
+import { Ionicons } from '@expo/vector-icons';
+import { useEffect, useState } from 'react';
 import {
+  Alert,
   FlatList,
+  Platform,
   RefreshControl,
+  SafeAreaView,
+  StatusBar,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  View
+  View,
 } from 'react-native';
 import { supabase } from '../../supabase';
 import IdeasScreen from './IdeasScreen';
 
+const COLORS = {
+  primary: '#0047AB',
+  primaryDark: '#003580',
+  primaryLight: '#E3F2FD',
+  secondary: '#FF6B35',
+  orange: '#FF9800',
+  success: '#4CAF50',
+  error: '#F44336',
+  black: '#000000',
+  darkGray: '#1A1A1A',
+  mediumGray: '#666666',
+  lightGray: '#E5E5E5',
+  veryLightGray: '#F5F5F5',
+  white: '#FFFFFF',
+  background: '#F8F9FA',
+  purple: '#9C27B0',
+};
+
 export default function BodiesScreen({ user, profile }) {
-  const [bodies, setBodies] = useState([]);
+  const [myBodies, setMyBodies] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedBody, setSelectedBody] = useState(null);
   const [showIdeas, setShowIdeas] = useState(false);
-  const [myBodies, setMyBodies] = useState([]);
-  const [activeTab, setActiveTab] = useState('All');
-
-  const tabs = ['All', 'My Bodies'];
 
   useEffect(() => {
-    loadBodies();
     loadMyBodies();
   }, []);
 
-  const loadBodies = async () => {
-    setLoading(true);
-    
-    let query = supabase
-      .from('bodies')
-      .select('*')
-      .order('member_count', { ascending: false });
-
-    if (searchQuery) {
-      query = query.ilike('name', `%${searchQuery}%`);
-    }
-
-    const { data } = await query.limit(50);
-    
-    if (data) {
-      setBodies(data);
-    }
-
-    setLoading(false);
-  };
-
   const loadMyBodies = async () => {
+    setLoading(true);
     const { data } = await supabase
       .from('body_members')
       .select(`
@@ -58,75 +56,51 @@ export default function BodiesScreen({ user, profile }) {
       .eq('member_id', user.id);
 
     if (data) {
-      setMyBodies(data.map(bm => bm.bodies));
+      setMyBodies(data.map((bm) => bm.bodies).filter(b => b !== null));
     }
-  };
-
-  const handleJoinBody = async (bodyId) => {
-    const { error } = await supabase
-      .from('body_members')
-      .insert([{
-        body_id: bodyId,
-        member_id: user.id,
-      }]);
-
-    if (!error) {
-      alert('Successfully joined body!');
-      loadMyBodies();
-      
-      // Update member count
-      const { data: body } = await supabase
-        .from('bodies')
-        .select('member_count')
-        .eq('user_id', bodyId)
-        .single();
-
-      await supabase
-        .from('bodies')
-        .update({ member_count: (body?.member_count || 0) + 1 })
-        .eq('user_id', bodyId);
-
-      loadBodies();
-    }
+    setLoading(false);
   };
 
   const handleLeaveBody = async (bodyId) => {
-    const { error } = await supabase
-      .from('body_members')
-      .delete()
-      .eq('body_id', bodyId)
-      .eq('member_id', user.id);
+    Alert.alert('Leave Organization', 'Are you sure you want to leave this organization?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Leave',
+        style: 'destructive',
+        onPress: async () => {
+          const { error } = await supabase
+            .from('body_members')
+            .delete()
+            .eq('body_id', bodyId)
+            .eq('member_id', user.id);
 
-    if (!error) {
-      alert('Left body successfully');
-      loadMyBodies();
+          if (!error) {
+            Alert.alert('Success', 'Left organization successfully');
+            loadMyBodies();
 
-      // Update member count
-      const { data: body } = await supabase
-        .from('bodies')
-        .select('member_count')
-        .eq('user_id', bodyId)
-        .single();
+            const { data: body } = await supabase
+              .from('bodies')
+              .select('member_count')
+              .eq('id', bodyId)
+              .single();
 
-      await supabase
-        .from('bodies')
-        .update({ member_count: Math.max(0, (body?.member_count || 1) - 1) })
-        .eq('user_id', bodyId);
-
-      loadBodies();
-    }
+            await supabase
+              .from('bodies')
+              .update({ member_count: Math.max(0, (body?.member_count || 1) - 1) })
+              .eq('id', bodyId);
+          } else {
+            Alert.alert('Error', 'Failed to leave organization');
+          }
+        },
+      },
+    ]);
   };
 
-  const isMemberOfBody = (bodyId) => {
-    return myBodies.some(b => b.user_id === bodyId);
-  };
-
-  // Show Ideas Screen if selected
   if (showIdeas && selectedBody) {
     return (
-      <IdeasScreen 
-        user={user} 
-        bodyId={selectedBody.user_id}
+      <IdeasScreen
+        user={user}
+        bodyId={selectedBody.id}
         onBack={() => {
           setShowIdeas(false);
           setSelectedBody(null);
@@ -135,325 +109,267 @@ export default function BodiesScreen({ user, profile }) {
     );
   }
 
-  const renderBody = ({ item }) => {
-    const isMember = isMemberOfBody(item.user_id);
+  const filteredBodies = myBodies.filter(body => 
+    body.name?.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
+  const renderBody = ({ item }) => {
     return (
-      <View style={styles.bodyCard}>
-        <View style={styles.bodyHeader}>
+      <TouchableOpacity 
+        style={styles.bodyCard}
+        activeOpacity={0.7}
+        onPress={() => {
+          setSelectedBody(item);
+          setShowIdeas(true);
+        }}
+      >
+        <View style={styles.bodyContent}>
           <View style={styles.bodyAvatar}>
             <Text style={styles.bodyAvatarText}>
               {item.name?.charAt(0).toUpperCase()}
             </Text>
           </View>
+          
           <View style={styles.bodyInfo}>
-            <Text style={styles.bodyName}>{item.name}</Text>
-            <Text style={styles.bodyStats}>
-              👥 {item.member_count || 0} members • 📊 {item.points || 0} points
-            </Text>
+            <Text style={styles.bodyName} numberOfLines={1}>{item.name}</Text>
+            <View style={styles.bodyStats}>
+              <Ionicons name="people-outline" size={12} color={COLORS.mediumGray} />
+              <Text style={styles.bodyStatsText}>{item.member_count || 0} members</Text>
+              <View style={styles.statDivider} />
+              <Ionicons name="star-outline" size={12} color={COLORS.mediumGray} />
+              <Text style={styles.bodyStatsText}>{item.points || 0} pts</Text>
+            </View>
           </View>
+
+          <TouchableOpacity
+            style={styles.moreButton}
+            onPress={(e) => {
+              e.stopPropagation();
+              Alert.alert(
+                item.name,
+                'Choose an action',
+                [
+                  {
+                    text: 'Ideas Box',
+                    onPress: () => {
+                      setSelectedBody(item);
+                      setShowIdeas(true);
+                    },
+                  },
+                  {
+                    text: 'Leave Organization',
+                    style: 'destructive',
+                    onPress: () => handleLeaveBody(item.id),
+                  },
+                  { text: 'Cancel', style: 'cancel' },
+                ]
+              );
+            }}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Ionicons name="ellipsis-horizontal" size={20} color={COLORS.mediumGray} />
+          </TouchableOpacity>
         </View>
-
-        {item.description && (
-          <Text style={styles.bodyDescription} numberOfLines={2}>
-            {item.description}
-          </Text>
-        )}
-
-        <View style={styles.bodyActions}>
-          {isMember ? (
-            <>
-              <TouchableOpacity 
-                style={styles.ideasButton}
-                onPress={() => {
-                  setSelectedBody(item);
-                  setShowIdeas(true);
-                }}
-              >
-                <Text style={styles.ideasButtonText}>💡 Ideas Box</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity 
-                style={styles.viewButton}
-                onPress={() => alert('View body details coming soon')}
-              >
-                <Text style={styles.viewButtonText}>View Details</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity 
-                style={styles.leaveButton}
-                onPress={() => handleLeaveBody(item.user_id)}
-              >
-                <Text style={styles.leaveButtonText}>Leave</Text>
-              </TouchableOpacity>
-            </>
-          ) : (
-            <TouchableOpacity 
-              style={styles.joinButton}
-              onPress={() => handleJoinBody(item.user_id)}
-            >
-              <Text style={styles.joinButtonText}>Join Body</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-      </View>
+      </TouchableOpacity>
     );
   };
 
-  const displayedBodies = activeTab === 'All' ? bodies : myBodies;
-
   return (
-    <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Bodies</Text>
-        <TouchableOpacity>
-          <Text style={styles.filterIcon}>⚙️</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Search Bar */}
-      <View style={styles.searchContainer}>
-        <Text style={styles.searchIcon}>🔍</Text>
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Search bodies..."
-          value={searchQuery}
-          onChangeText={(text) => {
-            setSearchQuery(text);
-            loadBodies();
-          }}
-          placeholderTextColor="#8E8E93"
-        />
-      </View>
-
-      {/* Tabs */}
-      <View style={styles.tabsContainer}>
-        {tabs.map((tab) => (
-          <TouchableOpacity
-            key={tab}
-            style={[
-              styles.tab,
-              activeTab === tab && styles.tabActive
-            ]}
-            onPress={() => setActiveTab(tab)}
-          >
-            <Text style={[
-              styles.tabText,
-              activeTab === tab && styles.tabTextActive
-            ]}>
-              {tab}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      {/* Bodies List */}
-      <FlatList
-        data={displayedBodies}
-        renderItem={renderBody}
-        keyExtractor={(item) => item.user_id}
-        contentContainerStyle={styles.listContainer}
-        refreshControl={
-          <RefreshControl refreshing={loading} onRefresh={() => {
-            loadBodies();
-            loadMyBodies();
-          }} />
-        }
-        ListEmptyComponent={() => (
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyIcon}>🏢</Text>
-            <Text style={styles.emptyText}>
-              {activeTab === 'All' ? 'No bodies found' : 'You haven\'t joined any bodies yet'}
-            </Text>
+    <SafeAreaView style={styles.safeArea}>
+      <StatusBar barStyle="light-content" backgroundColor={COLORS.primary} />
+      <View style={styles.container}>
+        {/* Header */}
+        <View style={styles.header}>
+          <View>
+            <Text style={styles.headerTitle}>My Organizations</Text>
+            <Text style={styles.headerSubtitle}>{myBodies.length} organizations joined</Text>
           </View>
-        )}
-      />
-    </View>
+        </View>
+
+        {/* Content Area */}
+        <View style={styles.contentArea}>
+          {/* Search Bar */}
+          <View style={styles.searchContainer}>
+            <Ionicons name="search-outline" size={20} color={COLORS.mediumGray} style={styles.searchIcon} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search organizations..."
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              placeholderTextColor={COLORS.mediumGray}
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity onPress={() => setSearchQuery('')}>
+                <Ionicons name="close-circle" size={20} color={COLORS.mediumGray} />
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {/* Bodies List */}
+          <FlatList
+            data={filteredBodies}
+            renderItem={renderBody}
+            keyExtractor={(item) => item.id}
+            contentContainerStyle={styles.listContainer}
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl
+                refreshing={loading}
+                onRefresh={loadMyBodies}
+                colors={[COLORS.primary]}
+                tintColor={COLORS.primary}
+              />
+            }
+            ListEmptyComponent={() => (
+              <View style={styles.emptyState}>
+                <Ionicons name="business-outline" size={64} color={COLORS.lightGray} />
+                <Text style={styles.emptyText}>
+                  {searchQuery ? 'No organizations found' : "You haven't joined any organizations yet"}
+                </Text>
+                <Text style={styles.emptySubtext}>
+                  Join organizations to stay connected with public bodies
+                </Text>
+              </View>
+            )}
+          />
+        </View>
+      </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: COLORS.primary,
+    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
+  },
   container: {
     flex: 1,
-    backgroundColor: '#F2F2F7',
+    backgroundColor: COLORS.background,
   },
   header: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: COLORS.primary,
     paddingHorizontal: 20,
-    paddingTop: 50,
-    paddingBottom: 15,
+    paddingTop: 16,
+    paddingBottom: 20,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E5EA',
   },
   headerTitle: {
     fontSize: 28,
     fontWeight: 'bold',
+    color: COLORS.white,
   },
-  filterIcon: {
-    fontSize: 24,
+  headerSubtitle: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.8)',
+    marginTop: 2,
+  },
+  contentArea: {
+    flex: 1,
+    backgroundColor: COLORS.background,
   },
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    marginHorizontal: 15,
-    marginTop: 15,
-    paddingHorizontal: 15,
-    paddingVertical: 12,
-    borderRadius: 10,
+    backgroundColor: COLORS.white,
+    marginHorizontal: 16,
+    marginTop: 16,
+    marginBottom: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 24,
     borderWidth: 1,
-    borderColor: '#E5E5EA',
+    borderColor: COLORS.lightGray,
   },
   searchIcon: {
-    fontSize: 18,
-    marginRight: 10,
+    marginRight: 8,
   },
   searchInput: {
     flex: 1,
-    fontSize: 16,
-    color: '#3C3C43',
-  },
-  tabsContainer: {
-    flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
-    padding: 15,
-    gap: 10,
-    marginTop: 15,
-  },
-  tab: {
-    flex: 1,
-    paddingVertical: 10,
-    borderRadius: 8,
-    backgroundColor: '#F2F2F7',
-    alignItems: 'center',
-  },
-  tabActive: {
-    backgroundColor: '#0066FF',
-  },
-  tabText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#3C3C43',
-  },
-  tabTextActive: {
-    color: '#FFFFFF',
+    fontSize: 15,
+    color: COLORS.darkGray,
+    padding: 0,
   },
   listContainer: {
-    padding: 15,
+    paddingHorizontal: 16,
+    paddingBottom: 20,
   },
   bodyCard: {
-    backgroundColor: '#FFFFFF',
-    padding: 16,
+    backgroundColor: COLORS.white,
     borderRadius: 12,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#E5E5EA',
+    marginBottom: 8,
+    shadowColor: COLORS.black,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  bodyHeader: {
+  bodyContent: {
     flexDirection: 'row',
-    marginBottom: 12,
+    alignItems: 'center',
+    padding: 12,
   },
   bodyAvatar: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: '#34C759',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: COLORS.primary,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
   },
   bodyAvatarText: {
-    color: '#fff',
-    fontSize: 22,
+    color: COLORS.white,
+    fontSize: 18,
     fontWeight: 'bold',
   },
   bodyInfo: {
     flex: 1,
   },
   bodyName: {
-    fontSize: 18,
-    fontWeight: 'bold',
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.darkGray,
     marginBottom: 4,
   },
   bodyStats: {
-    fontSize: 13,
-    color: '#8E8E93',
-  },
-  bodyDescription: {
-    fontSize: 14,
-    color: '#3C3C43',
-    lineHeight: 20,
-    marginBottom: 12,
-  },
-  bodyActions: {
     flexDirection: 'row',
-    gap: 8,
-  },
-  ideasButton: {
-    flex: 1,
-    backgroundColor: '#FFF9E6',
-    paddingVertical: 10,
-    borderRadius: 8,
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#FFD700',
+    gap: 4,
   },
-  ideasButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#856404',
+  bodyStatsText: {
+    fontSize: 12,
+    color: COLORS.mediumGray,
   },
-  viewButton: {
-    flex: 1,
-    backgroundColor: '#F2F2F7',
-    paddingVertical: 10,
-    borderRadius: 8,
-    alignItems: 'center',
+  statDivider: {
+    width: 3,
+    height: 3,
+    borderRadius: 1.5,
+    backgroundColor: COLORS.lightGray,
+    marginHorizontal: 4,
   },
-  viewButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#0066FF',
-  },
-  leaveButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 8,
-    backgroundColor: '#FFEBEE',
-    alignItems: 'center',
-  },
-  leaveButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#FF3B30',
-  },
-  joinButton: {
-    flex: 1,
-    backgroundColor: '#0066FF',
-    paddingVertical: 10,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  joinButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#FFFFFF',
+  moreButton: {
+    padding: 8,
   },
   emptyState: {
     alignItems: 'center',
-    paddingVertical: 60,
-  },
-  emptyIcon: {
-    fontSize: 64,
-    marginBottom: 16,
+    paddingVertical: 80,
+    paddingHorizontal: 40,
   },
   emptyText: {
     fontSize: 16,
-    color: '#8E8E93',
+    fontWeight: '600',
+    color: COLORS.darkGray,
+    textAlign: 'center',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  emptySubtext: {
+    fontSize: 14,
+    color: COLORS.mediumGray,
     textAlign: 'center',
   },
 });

@@ -1,19 +1,22 @@
 import { useEffect, useState } from 'react';
 import {
-    Alert,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Switch,
-    Text,
-    TouchableOpacity,
-    View
+  Alert,
+  Platform,
+  SafeAreaView,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Switch,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { supabase } from '../../supabase';
 import { NetworkMonitor } from '../../utils/networkMonitor';
 import { OfflineCache } from '../../utils/offlineCache';
 import { PushNotificationService } from '../../utils/pushNotificationService';
 import { ResponsiveUtils } from '../../utils/responsive';
+
 
 export default function AdvancedSettingsScreen({ user, profile, onBack }) {
   const [settings, setSettings] = useState(null);
@@ -22,30 +25,36 @@ export default function AdvancedSettingsScreen({ user, profile, onBack }) {
   const [cacheSize, setCacheSize] = useState('Unknown');
   const [lastSyncTime, setLastSyncTime] = useState(null);
 
+
   useEffect(() => {
     loadSettings();
     checkNetworkStatus();
     checkCacheInfo();
   }, []);
 
+
   const loadSettings = async () => {
     const savedSettings = await OfflineCache.getSettings();
     setSettings(savedSettings);
   };
+
 
   const checkNetworkStatus = async () => {
     const status = await NetworkMonitor.checkConnection();
     setNetworkStatus(status);
   };
 
+
   const checkCacheInfo = async () => {
     const lastSync = await OfflineCache.getLastSyncTime();
     setLastSyncTime(lastSync);
   };
 
+
   const updateSettings = async (newSettings) => {
     setSettings(newSettings);
     await OfflineCache.saveSettings(newSettings);
+
 
     // Update database
     const { error } = await supabase
@@ -58,10 +67,12 @@ export default function AdvancedSettingsScreen({ user, profile, onBack }) {
       })
       .eq('id', user.id);
 
+
     if (error) {
       console.error('Update settings error:', error);
     }
   };
+
 
   const toggleNotification = (key) => {
     const newSettings = {
@@ -74,6 +85,7 @@ export default function AdvancedSettingsScreen({ user, profile, onBack }) {
     updateSettings(newSettings);
   };
 
+
   const togglePrivacy = (key) => {
     const newSettings = {
       ...settings,
@@ -84,6 +96,7 @@ export default function AdvancedSettingsScreen({ user, profile, onBack }) {
     };
     updateSettings(newSettings);
   };
+
 
   const handleClearCache = () => {
     Alert.alert(
@@ -105,6 +118,7 @@ export default function AdvancedSettingsScreen({ user, profile, onBack }) {
     );
   };
 
+
   const handleEnablePushNotifications = async () => {
     setLoading(true);
     const token = await PushNotificationService.registerForPushNotifications();
@@ -119,6 +133,7 @@ export default function AdvancedSettingsScreen({ user, profile, onBack }) {
     setLoading(false);
   };
 
+
   const handleTestNotification = async () => {
     await PushNotificationService.scheduleNotification(
       'Test Notification',
@@ -129,11 +144,13 @@ export default function AdvancedSettingsScreen({ user, profile, onBack }) {
     Alert.alert('Notification Scheduled', 'You will receive a test notification in 3 seconds');
   };
 
+
   const handleSyncNow = async () => {
     if (!networkStatus.isConnected) {
       Alert.alert('No Internet', 'Cannot sync while offline');
       return;
     }
+
 
     Alert.alert('Sync Started', 'Syncing data...');
     // Add your sync logic here
@@ -142,272 +159,312 @@ export default function AdvancedSettingsScreen({ user, profile, onBack }) {
     Alert.alert('Success', 'Data synced successfully');
   };
 
+
   if (!settings) {
     return (
-      <View style={styles.loadingContainer}>
-        <Text style={styles.loadingText}>Loading settings...</Text>
-      </View>
+      <SafeAreaView style={styles.safeArea}>
+        <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>Loading settings...</Text>
+        </View>
+      </SafeAreaView>
     );
   }
 
+
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
-      
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={onBack} style={styles.backButton}>
-          <Text style={styles.backIcon}>←</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Advanced Settings</Text>
-        <View style={{ width: 40 }} />
-      </View>
-
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        {/* Account Info Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>📱 Account Information</Text>
-          
-          <View style={styles.infoCard}>
-            <Text style={styles.infoLabel}>Email</Text>
-            <Text style={styles.infoValue}>{profile?.email}</Text>
-          </View>
-
-          <View style={styles.infoCard}>
-            <Text style={styles.infoLabel}>Member Since</Text>
-            <Text style={styles.infoValue}>
-              {new Date(profile?.created_at).toLocaleDateString('en-US', {
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric'
-              })}
-            </Text>
-          </View>
-
-          <View style={styles.infoCard}>
-            <Text style={styles.infoLabel}>User ID</Text>
-            <Text style={styles.infoValue} numberOfLines={1}>{user.id}</Text>
-          </View>
+      <View style={styles.container}>
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity onPress={onBack} style={styles.backButton}>
+            <Text style={styles.backIcon}>←</Text>
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Advanced Settings</Text>
+          <View style={{ width: 40 }} />
         </View>
 
-        {/* Network Status */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>🌐 Network Status</Text>
-          
-          <View style={styles.statusCard}>
-            <View style={styles.statusRow}>
-              <Text style={styles.statusLabel}>Connection</Text>
-              <View style={[styles.statusBadge, networkStatus.isConnected ? styles.statusBadgeOnline : styles.statusBadgeOffline]}>
-                <Text style={styles.statusBadgeText}>
-                  {networkStatus.isConnected ? '✓ Online' : '✗ Offline'}
-                </Text>
+
+        <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+          {/* Account Info Section */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>📱 Account Information</Text>
+            
+            <View style={styles.infoCard}>
+              <Text style={styles.infoLabel}>Email</Text>
+              <Text style={styles.infoValue}>{profile?.email}</Text>
+            </View>
+
+
+            <View style={styles.infoCard}>
+              <Text style={styles.infoLabel}>Member Since</Text>
+              <Text style={styles.infoValue}>
+                {new Date(profile?.created_at).toLocaleDateString('en-US', {
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric'
+                })}
+              </Text>
+            </View>
+
+
+            <View style={styles.infoCard}>
+              <Text style={styles.infoLabel}>User ID</Text>
+              <Text style={styles.infoValue} numberOfLines={1}>{user.id}</Text>
+            </View>
+          </View>
+
+
+          {/* Network Status */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>🌐 Network Status</Text>
+            
+            <View style={styles.statusCard}>
+              <View style={styles.statusRow}>
+                <Text style={styles.statusLabel}>Connection</Text>
+                <View style={[styles.statusBadge, networkStatus.isConnected ? styles.statusBadgeOnline : styles.statusBadgeOffline]}>
+                  <Text style={styles.statusBadgeText}>
+                    {networkStatus.isConnected ? '✓ Online' : '✗ Offline'}
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.statusRow}>
+                <Text style={styles.statusLabel}>Connection Type</Text>
+                <Text style={styles.statusValue}>{networkStatus.type?.toUpperCase() || 'Unknown'}</Text>
               </View>
             </View>
-            <View style={styles.statusRow}>
-              <Text style={styles.statusLabel}>Connection Type</Text>
-              <Text style={styles.statusValue}>{networkStatus.type?.toUpperCase() || 'Unknown'}</Text>
+          </View>
+
+
+          {/* Push Notifications Section */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>🔔 Push Notifications</Text>
+
+
+            <TouchableOpacity
+              style={styles.primaryButton}
+              onPress={handleEnablePushNotifications}
+              disabled={loading}
+            >
+              <Text style={styles.primaryButtonText}>
+                {loading ? 'Enabling...' : '🔔 Enable Push Notifications'}
+              </Text>
+            </TouchableOpacity>
+
+
+            <TouchableOpacity
+              style={styles.secondaryButton}
+              onPress={handleTestNotification}
+            >
+              <Text style={styles.secondaryButtonText}>🧪 Test Notification</Text>
+            </TouchableOpacity>
+
+
+            <View style={styles.divider} />
+
+
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Petition Updates</Text>
+                <Text style={styles.settingDescription}>Get notified about petition activity</Text>
+              </View>
+              <Switch
+                value={settings.notifications.petition_updates}
+                onValueChange={() => toggleNotification('petition_updates')}
+                trackColor={{ false: '#E5E5EA', true: '#0066FF' }}
+                thumbColor="#FFFFFF"
+              />
+            </View>
+
+
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Comments</Text>
+                <Text style={styles.settingDescription}>New comments on your petitions</Text>
+              </View>
+              <Switch
+                value={settings.notifications.comments}
+                onValueChange={() => toggleNotification('comments')}
+                trackColor={{ false: '#E5E5EA', true: '#0066FF' }}
+                thumbColor="#FFFFFF"
+              />
+            </View>
+
+
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Votes</Text>
+                <Text style={styles.settingDescription}>When someone votes on your petition</Text>
+              </View>
+              <Switch
+                value={settings.notifications.votes}
+                onValueChange={() => toggleNotification('votes')}
+                trackColor={{ false: '#E5E5EA', true: '#0066FF' }}
+                thumbColor="#FFFFFF"
+              />
+            </View>
+
+
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Messages</Text>
+                <Text style={styles.settingDescription}>Direct messages and mentions</Text>
+              </View>
+              <Switch
+                value={settings.notifications.messages}
+                onValueChange={() => toggleNotification('messages')}
+                trackColor={{ false: '#E5E5EA', true: '#0066FF' }}
+                thumbColor="#FFFFFF"
+              />
+            </View>
+
+
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>System Notifications</Text>
+                <Text style={styles.settingDescription}>Important app updates</Text>
+              </View>
+              <Switch
+                value={settings.notifications.system}
+                onValueChange={() => toggleNotification('system')}
+                trackColor={{ false: '#E5E5EA', true: '#0066FF' }}
+                thumbColor="#FFFFFF"
+              />
             </View>
           </View>
-        </View>
 
-        {/* Push Notifications Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>🔔 Push Notifications</Text>
 
-          <TouchableOpacity
-            style={styles.primaryButton}
-            onPress={handleEnablePushNotifications}
-            disabled={loading}
-          >
-            <Text style={styles.primaryButtonText}>
-              {loading ? 'Enabling...' : '🔔 Enable Push Notifications'}
-            </Text>
-          </TouchableOpacity>
+          {/* Privacy Section */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>🔒 Privacy Settings</Text>
 
-          <TouchableOpacity
-            style={styles.secondaryButton}
-            onPress={handleTestNotification}
-          >
-            <Text style={styles.secondaryButtonText}>🧪 Test Notification</Text>
-          </TouchableOpacity>
 
-          <View style={styles.divider} />
-
-          <View style={styles.settingRow}>
-            <View style={styles.settingInfo}>
-              <Text style={styles.settingLabel}>Petition Updates</Text>
-              <Text style={styles.settingDescription}>Get notified about petition activity</Text>
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Show Email</Text>
+                <Text style={styles.settingDescription}>Visible on your public profile</Text>
+              </View>
+              <Switch
+                value={settings.privacy.show_email}
+                onValueChange={() => togglePrivacy('show_email')}
+                trackColor={{ false: '#E5E5EA', true: '#0066FF' }}
+                thumbColor="#FFFFFF"
+              />
             </View>
-            <Switch
-              value={settings.notifications.petition_updates}
-              onValueChange={() => toggleNotification('petition_updates')}
-              trackColor={{ false: '#E5E5EA', true: '#0066FF' }}
-              thumbColor="#FFFFFF"
-            />
-          </View>
 
-          <View style={styles.settingRow}>
-            <View style={styles.settingInfo}>
-              <Text style={styles.settingLabel}>Comments</Text>
-              <Text style={styles.settingDescription}>New comments on your petitions</Text>
+
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Show Phone</Text>
+                <Text style={styles.settingDescription}>Visible on your public profile</Text>
+              </View>
+              <Switch
+                value={settings.privacy.show_phone}
+                onValueChange={() => togglePrivacy('show_phone')}
+                trackColor={{ false: '#E5E5EA', true: '#0066FF' }}
+                thumbColor="#FFFFFF"
+              />
             </View>
-            <Switch
-              value={settings.notifications.comments}
-              onValueChange={() => toggleNotification('comments')}
-              trackColor={{ false: '#E5E5EA', true: '#0066FF' }}
-              thumbColor="#FFFFFF"
-            />
-          </View>
 
-          <View style={styles.settingRow}>
-            <View style={styles.settingInfo}>
-              <Text style={styles.settingLabel}>Votes</Text>
-              <Text style={styles.settingDescription}>When someone votes on your petition</Text>
+
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Show Activity</Text>
+                <Text style={styles.settingDescription}>Others can see your contributions</Text>
+              </View>
+              <Switch
+                value={settings.privacy.show_activity}
+                onValueChange={() => togglePrivacy('show_activity')}
+                trackColor={{ false: '#E5E5EA', true: '#0066FF' }}
+                thumbColor="#FFFFFF"
+              />
             </View>
-            <Switch
-              value={settings.notifications.votes}
-              onValueChange={() => toggleNotification('votes')}
-              trackColor={{ false: '#E5E5EA', true: '#0066FF' }}
-              thumbColor="#FFFFFF"
-            />
           </View>
 
-          <View style={styles.settingRow}>
-            <View style={styles.settingInfo}>
-              <Text style={styles.settingLabel}>Messages</Text>
-              <Text style={styles.settingDescription}>Direct messages and mentions</Text>
+
+          {/* Data & Storage Section */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>💾 Data & Storage</Text>
+
+
+            <View style={styles.infoCard}>
+              <Text style={styles.infoLabel}>Cache Size</Text>
+              <Text style={styles.infoValue}>{cacheSize}</Text>
             </View>
-            <Switch
-              value={settings.notifications.messages}
-              onValueChange={() => toggleNotification('messages')}
-              trackColor={{ false: '#E5E5EA', true: '#0066FF' }}
-              thumbColor="#FFFFFF"
-            />
-          </View>
 
-          <View style={styles.settingRow}>
-            <View style={styles.settingInfo}>
-              <Text style={styles.settingLabel}>System Notifications</Text>
-              <Text style={styles.settingDescription}>Important app updates</Text>
+
+            <View style={styles.infoCard}>
+              <Text style={styles.infoLabel}>Last Sync</Text>
+              <Text style={styles.infoValue}>
+                {lastSyncTime 
+                  ? new Date(lastSyncTime).toLocaleString()
+                  : 'Never synced'}
+              </Text>
             </View>
-            <Switch
-              value={settings.notifications.system}
-              onValueChange={() => toggleNotification('system')}
-              trackColor={{ false: '#E5E5EA', true: '#0066FF' }}
-              thumbColor="#FFFFFF"
-            />
+
+
+            <TouchableOpacity
+              style={styles.primaryButton}
+              onPress={handleSyncNow}
+            >
+              <Text style={styles.primaryButtonText}>🔄 Sync Now</Text>
+            </TouchableOpacity>
+
+
+            <TouchableOpacity 
+              style={styles.dangerButton}
+              onPress={handleClearCache}
+            >
+              <Text style={styles.dangerButtonText}>🗑️ Clear Cache</Text>
+            </TouchableOpacity>
           </View>
-        </View>
 
-        {/* Privacy Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>🔒 Privacy Settings</Text>
 
-          <View style={styles.settingRow}>
-            <View style={styles.settingInfo}>
-              <Text style={styles.settingLabel}>Show Email</Text>
-              <Text style={styles.settingDescription}>Visible on your public profile</Text>
+          {/* About Section */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>ℹ️ About</Text>
+
+
+            <View style={styles.infoCard}>
+              <Text style={styles.infoLabel}>App Name</Text>
+              <Text style={styles.infoValue}>Civic Engagement Platform</Text>
             </View>
-            <Switch
-              value={settings.privacy.show_email}
-              onValueChange={() => togglePrivacy('show_email')}
-              trackColor={{ false: '#E5E5EA', true: '#0066FF' }}
-              thumbColor="#FFFFFF"
-            />
-          </View>
 
-          <View style={styles.settingRow}>
-            <View style={styles.settingInfo}>
-              <Text style={styles.settingLabel}>Show Phone</Text>
-              <Text style={styles.settingDescription}>Visible on your public profile</Text>
+
+            <View style={styles.infoCard}>
+              <Text style={styles.infoLabel}>Version</Text>
+              <Text style={styles.infoValue}>1.0.0</Text>
             </View>
-            <Switch
-              value={settings.privacy.show_phone}
-              onValueChange={() => togglePrivacy('show_phone')}
-              trackColor={{ false: '#E5E5EA', true: '#0066FF' }}
-              thumbColor="#FFFFFF"
-            />
-          </View>
 
-          <View style={styles.settingRow}>
-            <View style={styles.settingInfo}>
-              <Text style={styles.settingLabel}>Show Activity</Text>
-              <Text style={styles.settingDescription}>Others can see your contributions</Text>
+
+            <View style={styles.infoCard}>
+              <Text style={styles.infoLabel}>Build Number</Text>
+              <Text style={styles.infoValue}>1</Text>
             </View>
-            <Switch
-              value={settings.privacy.show_activity}
-              onValueChange={() => togglePrivacy('show_activity')}
-              trackColor={{ false: '#E5E5EA', true: '#0066FF' }}
-              thumbColor="#FFFFFF"
-            />
-          </View>
-        </View>
 
-        {/* Data & Storage Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>💾 Data & Storage</Text>
 
-          <View style={styles.infoCard}>
-            <Text style={styles.infoLabel}>Cache Size</Text>
-            <Text style={styles.infoValue}>{cacheSize}</Text>
+            <View style={styles.infoCard}>
+              <Text style={styles.infoLabel}>Platform</Text>
+              <Text style={styles.infoValue}>Expo / React Native</Text>
+            </View>
           </View>
 
-          <View style={styles.infoCard}>
-            <Text style={styles.infoLabel}>Last Sync</Text>
-            <Text style={styles.infoValue}>
-              {lastSyncTime 
-                ? new Date(lastSyncTime).toLocaleString()
-                : 'Never synced'}
-            </Text>
-          </View>
 
-          <TouchableOpacity
-            style={styles.primaryButton}
-            onPress={handleSyncNow}
-          >
-            <Text style={styles.primaryButtonText}>🔄 Sync Now</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity 
-            style={styles.dangerButton}
-            onPress={handleClearCache}
-          >
-            <Text style={styles.dangerButtonText}>🗑️ Clear Cache</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* About Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>ℹ️ About</Text>
-
-          <View style={styles.infoCard}>
-            <Text style={styles.infoLabel}>App Name</Text>
-            <Text style={styles.infoValue}>Civic Engagement Platform</Text>
-          </View>
-
-          <View style={styles.infoCard}>
-            <Text style={styles.infoLabel}>Version</Text>
-            <Text style={styles.infoValue}>1.0.0</Text>
-          </View>
-
-          <View style={styles.infoCard}>
-            <Text style={styles.infoLabel}>Build Number</Text>
-            <Text style={styles.infoValue}>1</Text>
-          </View>
-
-          <View style={styles.infoCard}>
-            <Text style={styles.infoLabel}>Platform</Text>
-            <Text style={styles.infoValue}>Expo / React Native</Text>
-          </View>
-        </View>
-
-        <View style={{ height: 40 }} />
-      </ScrollView>
-    </View>
+          <View style={{ height: 40 }} />
+        </ScrollView>
+      </View>
+    </SafeAreaView>
   );
 }
 
+
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
+  },
   container: {
     flex: 1,
     backgroundColor: '#F5F5F5',

@@ -1,14 +1,18 @@
 import { useEffect, useState } from 'react';
 import {
-    FlatList,
-    RefreshControl,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  FlatList,
+  Platform,
+  RefreshControl,
+  SafeAreaView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { supabase } from '../../supabase';
 import { BADGES } from '../../utils/pointsService';
+
 
 export default function PointsHistoryScreen({ user, onBack }) {
   const [transactions, setTransactions] = useState([]);
@@ -16,12 +20,15 @@ export default function PointsHistoryScreen({ user, onBack }) {
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('History');
 
+
   const tabs = ['History', 'Badges'];
+
 
   useEffect(() => {
     loadTransactions();
     loadBadges();
   }, []);
+
 
   const loadTransactions = async () => {
     setLoading(true);
@@ -32,11 +39,13 @@ export default function PointsHistoryScreen({ user, onBack }) {
       .order('created_at', { ascending: false })
       .limit(50);
 
+
     if (data) {
       setTransactions(data);
     }
     setLoading(false);
   };
+
 
   const loadBadges = async () => {
     const { data } = await supabase
@@ -46,6 +55,7 @@ export default function PointsHistoryScreen({ user, onBack }) {
       .eq('user_type', 'member')
       .single();
 
+
     const unlockedBadgeIds = data?.badges || [];
     
     // Map to badge objects
@@ -54,8 +64,10 @@ export default function PointsHistoryScreen({ user, onBack }) {
       unlocked: unlockedBadgeIds.includes(badge.id),
     }));
 
+
     setBadges(badgeList);
   };
+
 
   const renderTransaction = ({ item }) => (
     <View style={styles.transactionCard}>
@@ -81,6 +93,7 @@ export default function PointsHistoryScreen({ user, onBack }) {
     </View>
   );
 
+
   const renderBadge = ({ item }) => (
     <View style={[
       styles.badgeCard,
@@ -102,70 +115,82 @@ export default function PointsHistoryScreen({ user, onBack }) {
     </View>
   );
 
+
   return (
-    <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={onBack} style={styles.backButton}>
-          <Text style={styles.backIcon}>←</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Points & Badges</Text>
-        <View style={styles.backButton} />
-      </View>
-
-      {/* Tabs */}
-      <View style={styles.tabsContainer}>
-        {tabs.map((tab) => (
-          <TouchableOpacity
-            key={tab}
-            style={[
-              styles.tab,
-              activeTab === tab && styles.tabActive
-            ]}
-            onPress={() => setActiveTab(tab)}
-          >
-            <Text style={[
-              styles.tabText,
-              activeTab === tab && styles.tabTextActive
-            ]}>
-              {tab}
-            </Text>
+    <SafeAreaView style={styles.safeArea}>
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+      <View style={styles.container}>
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity onPress={onBack} style={styles.backButton}>
+            <Text style={styles.backIcon}>←</Text>
           </TouchableOpacity>
-        ))}
-      </View>
+          <Text style={styles.headerTitle}>Points & Badges</Text>
+          <View style={styles.backButton} />
+        </View>
 
-      {activeTab === 'History' ? (
-        <FlatList
-          data={transactions}
-          renderItem={renderTransaction}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.listContainer}
-          refreshControl={
-            <RefreshControl refreshing={loading} onRefresh={loadTransactions} />
-          }
-          ListEmptyComponent={() => (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyIcon}>📊</Text>
-              <Text style={styles.emptyText}>No activity yet</Text>
-              <Text style={styles.emptySubtext}>Start creating petitions to earn points!</Text>
-            </View>
-          )}
-        />
-      ) : (
-        <FlatList
-          data={badges}
-          renderItem={renderBadge}
-          keyExtractor={(item) => item.id}
-          numColumns={2}
-          columnWrapperStyle={styles.badgesRow}
-          contentContainerStyle={styles.listContainer}
-        />
-      )}
-    </View>
+
+        {/* Tabs */}
+        <View style={styles.tabsContainer}>
+          {tabs.map((tab) => (
+            <TouchableOpacity
+              key={tab}
+              style={[
+                styles.tab,
+                activeTab === tab && styles.tabActive
+              ]}
+              onPress={() => setActiveTab(tab)}
+            >
+              <Text style={[
+                styles.tabText,
+                activeTab === tab && styles.tabTextActive
+              ]}>
+                {tab}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+
+        {activeTab === 'History' ? (
+          <FlatList
+            data={transactions}
+            renderItem={renderTransaction}
+            keyExtractor={(item) => item.id}
+            contentContainerStyle={styles.listContainer}
+            refreshControl={
+              <RefreshControl refreshing={loading} onRefresh={loadTransactions} />
+            }
+            ListEmptyComponent={() => (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyIcon}>📊</Text>
+                <Text style={styles.emptyText}>No activity yet</Text>
+                <Text style={styles.emptySubtext}>Start creating petitions to earn points!</Text>
+              </View>
+            )}
+          />
+        ) : (
+          <FlatList
+            data={badges}
+            renderItem={renderBadge}
+            keyExtractor={(item) => item.id}
+            numColumns={2}
+            columnWrapperStyle={styles.badgesRow}
+            contentContainerStyle={styles.listContainer}
+          />
+        )}
+      </View>
+    </SafeAreaView>
   );
 }
 
+
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
+  },
   container: {
     flex: 1,
     backgroundColor: '#F2F2F7',
@@ -173,7 +198,7 @@ const styles = StyleSheet.create({
   header: {
     backgroundColor: '#FFFFFF',
     paddingHorizontal: 20,
-    paddingTop: 50,
+    paddingTop: 15,
     paddingBottom: 15,
     flexDirection: 'row',
     alignItems: 'center',

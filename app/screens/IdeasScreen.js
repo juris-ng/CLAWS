@@ -1,20 +1,26 @@
 import { useEffect, useState } from 'react';
 import {
-    FlatList,
-    RefreshControl,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  FlatList,
+  Platform,
+  RefreshControl,
+  SafeAreaView,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { supabase } from '../../supabase';
 import IdeasComposerScreen from './IdeasComposerScreen';
+
 
 export default function IdeasScreen({ user, bodyId, onBack }) {
   const [ideas, setIdeas] = useState([]);
   const [loading, setLoading] = useState(false);
   const [showComposer, setShowComposer] = useState(false);
   const [filter, setFilter] = useState('all'); // 'all', 'submitted', 'under_review', 'accepted'
+
 
   const filters = [
     { value: 'all', label: 'All Ideas' },
@@ -24,12 +30,15 @@ export default function IdeasScreen({ user, bodyId, onBack }) {
     { value: 'implemented', label: 'Implemented' },
   ];
 
+
   useEffect(() => {
     loadIdeas();
   }, [filter]);
 
+
   const loadIdeas = async () => {
     setLoading(true);
+
 
     let query = supabase
       .from('ideas')
@@ -40,18 +49,23 @@ export default function IdeasScreen({ user, bodyId, onBack }) {
       .eq('body_id', bodyId)
       .order('created_at', { ascending: false });
 
+
     if (filter !== 'all') {
       query = query.eq('status', filter);
     }
 
+
     const { data } = await query;
+
 
     if (data) {
       setIdeas(data);
     }
 
+
     setLoading(false);
   };
+
 
   const getStatusColor = (status) => {
     switch (status) {
@@ -64,6 +78,7 @@ export default function IdeasScreen({ user, bodyId, onBack }) {
     }
   };
 
+
   const getStatusIcon = (status) => {
     switch (status) {
       case 'submitted': return '📬';
@@ -75,6 +90,7 @@ export default function IdeasScreen({ user, bodyId, onBack }) {
     }
   };
 
+
   if (showComposer) {
     return (
       <IdeasComposerScreen
@@ -85,6 +101,7 @@ export default function IdeasScreen({ user, bodyId, onBack }) {
       />
     );
   }
+
 
   const renderIdea = ({ item }) => (
     <TouchableOpacity style={styles.ideaCard}>
@@ -98,10 +115,12 @@ export default function IdeasScreen({ user, bodyId, onBack }) {
         </Text>
       </View>
 
+
       <Text style={styles.ideaTitle}>{item.title}</Text>
       <Text style={styles.ideaDescription} numberOfLines={3}>
         {item.description}
       </Text>
+
 
       <View style={styles.ideaFooter}>
         <View style={styles.ideaAuthor}>
@@ -112,6 +131,7 @@ export default function IdeasScreen({ user, bodyId, onBack }) {
           </View>
           <Text style={styles.authorName}>{item.members?.full_name}</Text>
         </View>
+
 
         <View style={styles.ideaVotes}>
           <TouchableOpacity style={styles.voteButton}>
@@ -127,84 +147,97 @@ export default function IdeasScreen({ user, bodyId, onBack }) {
     </TouchableOpacity>
   );
 
+
   return (
-    <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={onBack} style={styles.backButton}>
-          <Text style={styles.backIcon}>←</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Ideas Box</Text>
-        <TouchableOpacity onPress={() => setShowComposer(true)}>
-          <Text style={styles.addIcon}>+</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Filter Tabs */}
-      <ScrollView 
-        horizontal 
-        style={styles.filterContainer}
-        showsHorizontalScrollIndicator={false}
-      >
-        {filters.map((f) => (
-          <TouchableOpacity
-            key={f.value}
-            style={[
-              styles.filterButton,
-              filter === f.value && styles.filterButtonActive
-            ]}
-            onPress={() => setFilter(f.value)}
-          >
-            <Text style={[
-              styles.filterText,
-              filter === f.value && styles.filterTextActive
-            ]}>
-              {f.label}
-            </Text>
+    <SafeAreaView style={styles.safeArea}>
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+      <View style={styles.container}>
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity onPress={onBack} style={styles.backButton}>
+            <Text style={styles.backIcon}>←</Text>
           </TouchableOpacity>
-        ))}
-      </ScrollView>
+          <Text style={styles.headerTitle}>Ideas Box</Text>
+          <TouchableOpacity onPress={() => setShowComposer(true)}>
+            <Text style={styles.addIcon}>+</Text>
+          </TouchableOpacity>
+        </View>
 
-      {/* Ideas List */}
-      <FlatList
-        data={ideas}
-        renderItem={renderIdea}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.listContainer}
-        refreshControl={
-          <RefreshControl refreshing={loading} onRefresh={loadIdeas} />
-        }
-        ListEmptyComponent={() => (
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyIcon}>💡</Text>
-            <Text style={styles.emptyTitle}>No Ideas Yet</Text>
-            <Text style={styles.emptyText}>
-              Be the first to share a suggestion with this body!
-            </Text>
-            <TouchableOpacity 
-              style={styles.emptyButton}
-              onPress={() => setShowComposer(true)}
-            >
-              <Text style={styles.emptyButtonText}>Submit an Idea</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-      />
 
-      {/* FAB */}
-      {ideas.length > 0 && (
-        <TouchableOpacity 
-          style={styles.fab}
-          onPress={() => setShowComposer(true)}
+        {/* Filter Tabs */}
+        <ScrollView 
+          horizontal 
+          style={styles.filterContainer}
+          showsHorizontalScrollIndicator={false}
         >
-          <Text style={styles.fabIcon}>💡</Text>
-        </TouchableOpacity>
-      )}
-    </View>
+          {filters.map((f) => (
+            <TouchableOpacity
+              key={f.value}
+              style={[
+                styles.filterButton,
+                filter === f.value && styles.filterButtonActive
+              ]}
+              onPress={() => setFilter(f.value)}
+            >
+              <Text style={[
+                styles.filterText,
+                filter === f.value && styles.filterTextActive
+              ]}>
+                {f.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+
+
+        {/* Ideas List */}
+        <FlatList
+          data={ideas}
+          renderItem={renderIdea}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.listContainer}
+          refreshControl={
+            <RefreshControl refreshing={loading} onRefresh={loadIdeas} />
+          }
+          ListEmptyComponent={() => (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyIcon}>💡</Text>
+              <Text style={styles.emptyTitle}>No Ideas Yet</Text>
+              <Text style={styles.emptyText}>
+                Be the first to share a suggestion with this body!
+              </Text>
+              <TouchableOpacity 
+                style={styles.emptyButton}
+                onPress={() => setShowComposer(true)}
+              >
+                <Text style={styles.emptyButtonText}>Submit an Idea</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        />
+
+
+        {/* FAB */}
+        {ideas.length > 0 && (
+          <TouchableOpacity 
+            style={styles.fab}
+            onPress={() => setShowComposer(true)}
+          >
+            <Text style={styles.fabIcon}>💡</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    </SafeAreaView>
   );
 }
 
+
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
+  },
   container: {
     flex: 1,
     backgroundColor: '#F2F2F7',
@@ -212,7 +245,7 @@ const styles = StyleSheet.create({
   header: {
     backgroundColor: '#FFFFFF',
     paddingHorizontal: 20,
-    paddingTop: 50,
+    paddingTop: 15,
     paddingBottom: 15,
     flexDirection: 'row',
     alignItems: 'center',

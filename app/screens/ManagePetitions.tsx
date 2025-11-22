@@ -1,16 +1,20 @@
 import React, { useEffect, useState } from 'react';
 import {
-    FlatList,
-    Modal,
-    RefreshControl,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  FlatList,
+  Modal,
+  Platform,
+  RefreshControl,
+  SafeAreaView,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { supabase } from '../../supabase';
 import { getCategoryIcon } from '../constants/Categories';
+
 
 const STATUS_OPTIONS = [
   { value: 'pending', label: 'Pending', color: '#ffc107' },
@@ -20,15 +24,18 @@ const STATUS_OPTIONS = [
   { value: 'implemented', label: 'Implemented', color: '#6610f2' },
 ];
 
+
 export default function ManagePetitions({ onBack }) {
   const [petitions, setPetitions] = useState([]);
   const [loading, setLoading] = useState(false);
   const [selectedPetition, setSelectedPetition] = useState(null);
   const [modalVisible, setModalVisible] = useState(false);
 
+
   useEffect(() => {
     loadPetitions();
   }, []);
+
 
   const loadPetitions = async () => {
     setLoading(true);
@@ -40,18 +47,22 @@ export default function ManagePetitions({ onBack }) {
       `)
       .order('created_at', { ascending: false });
 
+
     setLoading(false);
+
 
     if (data) {
       setPetitions(data);
     }
   };
 
+
   const handleStatusChange = async (newStatus) => {
     const { error } = await supabase
       .from('petitions')
       .update({ status: newStatus })
       .eq('id', selectedPetition.id);
+
 
     if (error) {
       alert('Failed to update status: ' + error.message);
@@ -63,15 +74,18 @@ export default function ManagePetitions({ onBack }) {
     }
   };
 
+
   const getStatusColor = (status) => {
     const statusObj = STATUS_OPTIONS.find(s => s.value === status);
     return statusObj ? statusObj.color : '#6c757d';
   };
 
+
   const getStatusLabel = (status) => {
     const statusObj = STATUS_OPTIONS.find(s => s.value === status);
     return statusObj ? statusObj.label : status;
   };
+
 
   const renderPetition = ({ item }) => (
     <View style={styles.petitionCard}>
@@ -84,10 +98,12 @@ export default function ManagePetitions({ onBack }) {
         </View>
       </View>
 
+
       <Text style={styles.petitionTitle}>{item.title}</Text>
       <Text style={styles.petitionDescription} numberOfLines={2}>
         {item.description}
       </Text>
+
 
       <View style={styles.petitionMeta}>
         <Text style={styles.metaText}>
@@ -97,6 +113,7 @@ export default function ManagePetitions({ onBack }) {
           👍 {item.upvotes} | 👎 {item.downvotes}
         </Text>
       </View>
+
 
       <TouchableOpacity
         style={styles.changeStatusButton}
@@ -110,85 +127,98 @@ export default function ManagePetitions({ onBack }) {
     </View>
   );
 
+
   return (
-    <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={onBack} style={styles.backButton}>
-          <Text style={styles.backText}>← Back</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Manage Petitions</Text>
-        <View style={styles.backButton} />
-      </View>
-
-      {/* Petitions List */}
-      <FlatList
-        data={petitions}
-        renderItem={renderPetition}
-        keyExtractor={(item) => item.id}
-        refreshControl={
-          <RefreshControl refreshing={loading} onRefresh={loadPetitions} />
-        }
-        contentContainerStyle={styles.listContainer}
-      />
-
-      {/* Status Change Modal */}
-      <Modal
-        animationType="slide"
-        transparent={true}
-        visible={modalVisible}
-        onRequestClose={() => setModalVisible(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Change Petition Status</Text>
-            
-            {selectedPetition && (
-              <>
-                <Text style={styles.modalPetitionTitle} numberOfLines={2}>
-                  {selectedPetition.title}
-                </Text>
-                
-                <Text style={styles.modalLabel}>Select New Status:</Text>
-                
-                <ScrollView style={styles.statusList}>
-                  {STATUS_OPTIONS.map((status) => (
-                    <TouchableOpacity
-                      key={status.value}
-                      style={[
-                        styles.statusOption,
-                        { borderLeftColor: status.color }
-                      ]}
-                      onPress={() => handleStatusChange(status.value)}
-                    >
-                      <View style={[styles.statusIndicator, { backgroundColor: status.color }]} />
-                      <Text style={styles.statusOptionText}>{status.label}</Text>
-                      {selectedPetition.status === status.value && (
-                        <Text style={styles.currentBadge}>Current</Text>
-                      )}
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-
-                <TouchableOpacity
-                  style={styles.cancelButton}
-                  onPress={() => {
-                    setModalVisible(false);
-                    setSelectedPetition(null);
-                  }}
-                >
-                  <Text style={styles.cancelButtonText}>Cancel</Text>
-                </TouchableOpacity>
-              </>
-            )}
-          </View>
+    <SafeAreaView style={styles.safeArea}>
+      <StatusBar barStyle="light-content" backgroundColor="#28a745" />
+      <View style={styles.container}>
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity onPress={onBack} style={styles.backButton}>
+            <Text style={styles.backText}>← Back</Text>
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Manage Petitions</Text>
+          <View style={styles.backButton} />
         </View>
-      </Modal>
-    </View>
+
+
+        {/* Petitions List */}
+        <FlatList
+          data={petitions}
+          renderItem={renderPetition}
+          keyExtractor={(item) => item.id}
+          refreshControl={
+            <RefreshControl refreshing={loading} onRefresh={loadPetitions} />
+          }
+          contentContainerStyle={styles.listContainer}
+        />
+
+
+        {/* Status Change Modal */}
+        <Modal
+          animationType="slide"
+          transparent={true}
+          visible={modalVisible}
+          onRequestClose={() => setModalVisible(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalTitle}>Change Petition Status</Text>
+              
+              {selectedPetition && (
+                <>
+                  <Text style={styles.modalPetitionTitle} numberOfLines={2}>
+                    {selectedPetition.title}
+                  </Text>
+                  
+                  <Text style={styles.modalLabel}>Select New Status:</Text>
+                  
+                  <ScrollView style={styles.statusList}>
+                    {STATUS_OPTIONS.map((status) => (
+                      <TouchableOpacity
+                        key={status.value}
+                        style={[
+                          styles.statusOption,
+                          { borderLeftColor: status.color }
+                        ]}
+                        onPress={() => handleStatusChange(status.value)}
+                      >
+                        <View style={[styles.statusIndicator, { backgroundColor: status.color }]} />
+                        <Text style={styles.statusOptionText}>{status.label}</Text>
+                        {selectedPetition.status === status.value && (
+                          <Text style={styles.currentBadge}>Current</Text>
+                        )}
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+
+
+                  <TouchableOpacity
+                    style={styles.cancelButton}
+                    onPress={() => {
+                      setModalVisible(false);
+                      setSelectedPetition(null);
+                    }}
+                  >
+                    <Text style={styles.cancelButtonText}>Cancel</Text>
+                  </TouchableOpacity>
+                </>
+              )}
+            </View>
+          </View>
+        </Modal>
+      </View>
+    </SafeAreaView>
   );
 }
 
+
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#28a745',
+    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
+  },
   container: {
     flex: 1,
     backgroundColor: '#f5f5f5',

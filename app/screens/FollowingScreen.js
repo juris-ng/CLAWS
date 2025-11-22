@@ -1,22 +1,28 @@
 import { useEffect, useState } from 'react';
 import {
-    FlatList,
-    RefreshControl, StatusBar,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  FlatList,
+  Platform,
+  RefreshControl,
+  SafeAreaView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { ResponsiveUtils } from '../../utils/responsive';
 import { SocialService } from '../../utils/socialService';
+
 
 export default function FollowingScreen({ userId, onBack, onViewUser }) {
   const [following, setFollowing] = useState([]);
   const [loading, setLoading] = useState(false);
 
+
   useEffect(() => {
     loadFollowing();
   }, []);
+
 
   const loadFollowing = async () => {
     setLoading(true);
@@ -24,6 +30,7 @@ export default function FollowingScreen({ userId, onBack, onViewUser }) {
     setFollowing(data);
     setLoading(false);
   };
+
 
   const renderFollowing = ({ item }) => {
     const followedUser = item.following;
@@ -40,6 +47,7 @@ export default function FollowingScreen({ userId, onBack, onViewUser }) {
           </Text>
         </View>
 
+
         <View style={styles.userInfo}>
           <Text style={styles.userName} numberOfLines={1}>
             {followedUser.full_name}
@@ -53,48 +61,58 @@ export default function FollowingScreen({ userId, onBack, onViewUser }) {
           </View>
         </View>
 
+
         <Text style={styles.userArrow}>→</Text>
       </TouchableOpacity>
     );
   };
 
-  return (
-    <View style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
-      
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={onBack} style={styles.backButton}>
-          <Text style={styles.backIcon}>←</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Following ({following.length})</Text>
-        <View style={{ width: 40 }} />
-      </View>
 
-      <FlatList
-        data={following}
-        renderItem={renderFollowing}
-        keyExtractor={(item) => item.following_id}
-        contentContainerStyle={styles.listContainer}
-        refreshControl={
-          <RefreshControl refreshing={loading} onRefresh={loadFollowing} />
-        }
-        ListEmptyComponent={() => (
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyIcon}>👥</Text>
-            <Text style={styles.emptyTitle}>Not Following Anyone</Text>
-            <Text style={styles.emptyText}>
-              Follow others to see their petitions and updates!
-            </Text>
-          </View>
-        )}
-      />
-    </View>
+  return (
+    <SafeAreaView style={styles.safeArea}>
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+      <View style={styles.container}>
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity onPress={onBack} style={styles.backButton}>
+            <Text style={styles.backIcon}>←</Text>
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Following ({following.length})</Text>
+          <View style={{ width: 40 }} />
+        </View>
+
+
+        <FlatList
+          data={following}
+          renderItem={renderFollowing}
+          keyExtractor={(item) => item.following_id}
+          contentContainerStyle={styles.listContainer}
+          refreshControl={
+            <RefreshControl refreshing={loading} onRefresh={loadFollowing} />
+          }
+          ListEmptyComponent={() => (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyIcon}>👥</Text>
+              <Text style={styles.emptyTitle}>Not Following Anyone</Text>
+              <Text style={styles.emptyText}>
+                Follow others to see their petitions and updates!
+              </Text>
+            </View>
+          )}
+        />
+      </View>
+    </SafeAreaView>
   );
 }
 
+
 // Use same styles as FollowersScreen
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
+  },
   container: {
     flex: 1,
     backgroundColor: '#F5F5F5',
@@ -102,7 +120,7 @@ const styles = StyleSheet.create({
   header: {
     backgroundColor: '#FFFFFF',
     paddingHorizontal: ResponsiveUtils.spacing(2),
-    paddingTop: ResponsiveUtils.isIPhoneX() ? 44 : 20,
+    paddingTop: ResponsiveUtils.spacing(1.5),
     paddingBottom: ResponsiveUtils.spacing(1.5),
     flexDirection: 'row',
     alignItems: 'center',

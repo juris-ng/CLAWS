@@ -1,0 +1,9 @@
+Dashboard.tsx vs BodyDashboardScreen.js - Check if one is redundant
+
+EditProfile.tsx vs EditProfileScreen.js - Likely duplicates
+
+Login.tsx vs AuthScreen.tsx - Check authentication flow
+
+LeaderboardsScreen.js (appears twice in the list)
+
+FollowersScreen.js (appears twice)

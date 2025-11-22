@@ -1,19 +1,24 @@
 import { useState } from 'react';
 import {
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View
+  Platform,
+  SafeAreaView,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { supabase } from '../../supabase';
+
 
 export default function IdeasComposerScreen({ user, bodyId, onBack, onSuccess }) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState('general');
   const [submitting, setSubmitting] = useState(false);
+
 
   const categories = [
     { value: 'general', label: '💡 General', color: '#8E8E93' },
@@ -24,13 +29,16 @@ export default function IdeasComposerScreen({ user, bodyId, onBack, onSuccess })
     { value: 'safety', label: '🚨 Safety', color: '#AF52DE' },
   ];
 
+
   const handleSubmit = async () => {
     if (!title.trim() || !description.trim()) {
       alert('Please fill in both title and description');
       return;
     }
 
+
     setSubmitting(true);
+
 
     const { data, error } = await supabase
       .from('ideas')
@@ -48,12 +56,15 @@ export default function IdeasComposerScreen({ user, bodyId, onBack, onSuccess })
       ])
       .select();
 
+
     setSubmitting(false);
+
 
     if (error) {
       alert('Failed to submit idea: ' + error.message);
       return;
     }
+
 
     alert('Idea submitted successfully! The body will review it soon.');
     setTitle('');
@@ -62,107 +73,124 @@ export default function IdeasComposerScreen({ user, bodyId, onBack, onSuccess })
     onBack();
   };
 
+
   return (
-    <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={onBack} style={styles.backButton}>
-          <Text style={styles.backIcon}>←</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Submit Idea</Text>
-        <View style={styles.backButton} />
-      </View>
-
-      <ScrollView style={styles.content}>
-        {/* Info Banner */}
-        <View style={styles.infoBanner}>
-          <Text style={styles.infoBannerIcon}>💡</Text>
-          <Text style={styles.infoBannerText}>
-            Share your ideas and suggestions with the body. This is less formal than a petition 
-            and perfect for brainstorming solutions.
-          </Text>
-        </View>
-
-        {/* Title Input */}
-        <View style={styles.section}>
-          <Text style={styles.label}>Idea Title</Text>
-          <TextInput
-            style={styles.titleInput}
-            placeholder="Community Garden Initiative"
-            value={title}
-            onChangeText={setTitle}
-            placeholderTextColor="#8E8E93"
-          />
-        </View>
-
-        {/* Category Selection */}
-        <View style={styles.section}>
-          <Text style={styles.label}>Category</Text>
-          <View style={styles.categoryGrid}>
-            {categories.map((cat) => (
-              <TouchableOpacity
-                key={cat.value}
-                style={[
-                  styles.categoryButton,
-                  category === cat.value && styles.categoryButtonActive,
-                  { borderColor: category === cat.value ? cat.color : '#E5E5EA' }
-                ]}
-                onPress={() => setCategory(cat.value)}
-              >
-                <Text style={styles.categoryText}>{cat.label}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-
-        {/* Description Input */}
-        <View style={styles.section}>
-          <Text style={styles.label}>Description</Text>
-          <TextInput
-            style={styles.descriptionInput}
-            placeholder="Describe your idea in detail. What problem does it solve? How would it benefit the community?"
-            value={description}
-            onChangeText={setDescription}
-            multiline
-            textAlignVertical="top"
-            placeholderTextColor="#8E8E93"
-          />
-        </View>
-
-        {/* Tips */}
-        <View style={styles.tipsCard}>
-          <Text style={styles.tipsTitle}>💡 Tips for Great Ideas:</Text>
-          <Text style={styles.tipText}>• Be specific and clear about your suggestion</Text>
-          <Text style={styles.tipText}>• Explain the expected benefits</Text>
-          <Text style={styles.tipText}>• Consider feasibility and resources needed</Text>
-          <Text style={styles.tipText}>• Keep it constructive and solution-focused</Text>
-        </View>
-
-        {/* Action Buttons */}
-        <View style={styles.buttonContainer}>
-          <TouchableOpacity 
-            style={styles.cancelButton}
-            onPress={onBack}
-          >
-            <Text style={styles.cancelButtonText}>Cancel</Text>
+    <SafeAreaView style={styles.safeArea}>
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+      <View style={styles.container}>
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity onPress={onBack} style={styles.backButton}>
+            <Text style={styles.backIcon}>←</Text>
           </TouchableOpacity>
+          <Text style={styles.headerTitle}>Submit Idea</Text>
+          <View style={styles.backButton} />
+        </View>
 
-          <TouchableOpacity 
-            style={[styles.submitButton, submitting && styles.submitButtonDisabled]}
-            onPress={handleSubmit}
-            disabled={submitting}
-          >
-            <Text style={styles.submitButtonText}>
-              {submitting ? 'Submitting...' : 'Submit Idea'}
+
+        <ScrollView style={styles.content}>
+          {/* Info Banner */}
+          <View style={styles.infoBanner}>
+            <Text style={styles.infoBannerIcon}>💡</Text>
+            <Text style={styles.infoBannerText}>
+              Share your ideas and suggestions with the body. This is less formal than a petition 
+              and perfect for brainstorming solutions.
             </Text>
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
-    </View>
+          </View>
+
+
+          {/* Title Input */}
+          <View style={styles.section}>
+            <Text style={styles.label}>Idea Title</Text>
+            <TextInput
+              style={styles.titleInput}
+              placeholder="Community Garden Initiative"
+              value={title}
+              onChangeText={setTitle}
+              placeholderTextColor="#8E8E93"
+            />
+          </View>
+
+
+          {/* Category Selection */}
+          <View style={styles.section}>
+            <Text style={styles.label}>Category</Text>
+            <View style={styles.categoryGrid}>
+              {categories.map((cat) => (
+                <TouchableOpacity
+                  key={cat.value}
+                  style={[
+                    styles.categoryButton,
+                    category === cat.value && styles.categoryButtonActive,
+                    { borderColor: category === cat.value ? cat.color : '#E5E5EA' }
+                  ]}
+                  onPress={() => setCategory(cat.value)}
+                >
+                  <Text style={styles.categoryText}>{cat.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+
+
+          {/* Description Input */}
+          <View style={styles.section}>
+            <Text style={styles.label}>Description</Text>
+            <TextInput
+              style={styles.descriptionInput}
+              placeholder="Describe your idea in detail. What problem does it solve? How would it benefit the community?"
+              value={description}
+              onChangeText={setDescription}
+              multiline
+              textAlignVertical="top"
+              placeholderTextColor="#8E8E93"
+            />
+          </View>
+
+
+          {/* Tips */}
+          <View style={styles.tipsCard}>
+            <Text style={styles.tipsTitle}>💡 Tips for Great Ideas:</Text>
+            <Text style={styles.tipText}>• Be specific and clear about your suggestion</Text>
+            <Text style={styles.tipText}>• Explain the expected benefits</Text>
+            <Text style={styles.tipText}>• Consider feasibility and resources needed</Text>
+            <Text style={styles.tipText}>• Keep it constructive and solution-focused</Text>
+          </View>
+
+
+          {/* Action Buttons */}
+          <View style={styles.buttonContainer}>
+            <TouchableOpacity 
+              style={styles.cancelButton}
+              onPress={onBack}
+            >
+              <Text style={styles.cancelButtonText}>Cancel</Text>
+            </TouchableOpacity>
+
+
+            <TouchableOpacity 
+              style={[styles.submitButton, submitting && styles.submitButtonDisabled]}
+              onPress={handleSubmit}
+              disabled={submitting}
+            >
+              <Text style={styles.submitButtonText}>
+                {submitting ? 'Submitting...' : 'Submit Idea'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      </View>
+    </SafeAreaView>
   );
 }
 
+
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
+  },
   container: {
     flex: 1,
     backgroundColor: '#F2F2F7',
@@ -170,7 +198,7 @@ const styles = StyleSheet.create({
   header: {
     backgroundColor: '#FFFFFF',
     paddingHorizontal: 20,
-    paddingTop: 50,
+    paddingTop: 15,
     paddingBottom: 15,
     flexDirection: 'row',
     alignItems: 'center',

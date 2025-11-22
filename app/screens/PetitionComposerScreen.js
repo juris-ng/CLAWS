@@ -1,6 +1,10 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import {
+  Alert,
+  Platform,
+  SafeAreaView,
   ScrollView,
+  StatusBar,
   StyleSheet,
   Switch,
   Text,
@@ -8,19 +12,25 @@ import {
   TouchableOpacity,
   View
 } from 'react-native';
+import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../supabase';
 import { PointsService } from '../../utils/pointsService';
 
-export default function PetitionComposerScreen({ user, onBack, onSuccess }) {
+
+export default function PetitionComposerScreen({ navigation, route }) {
+  const { user } = useAuth();
+  const { petitionType } = route.params || {};
+  
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [isAnonymous, setIsAnonymous] = useState(false);
   const [showAISuggestions, setShowAISuggestions] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
+
   const handleSubmit = async () => {
     if (!title.trim() || !description.trim()) {
-      alert('Please fill in both title and description');
+      Alert.alert('Error', 'Please fill in both title and description');
       return;
     }
 
@@ -44,7 +54,7 @@ export default function PetitionComposerScreen({ user, onBack, onSuccess }) {
 
     if (error) {
       setSubmitting(false);
-      alert('Failed to create petition: ' + error.message);
+      Alert.alert('Error', 'Failed to create petition: ' + error.message);
       return;
     }
 
@@ -57,150 +67,164 @@ export default function PetitionComposerScreen({ user, onBack, onSuccess }) {
     );
 
     setSubmitting(false);
-    alert(`Petition created successfully! You earned ${pointsAwarded} points! 🎉`);
+    Alert.alert('Success', `Petition created successfully! You earned ${pointsAwarded} points! 🎉`);
     setTitle('');
     setDescription('');
     setIsAnonymous(false);
-    if (onSuccess) onSuccess();
+    navigation.goBack();
   };
 
-  return (
-    <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={onBack} style={styles.backButton}>
-          <Text style={styles.backIcon}>←</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Compose Petition</Text>
-        <View style={styles.backButton} />
-      </View>
 
-      <ScrollView style={styles.content}>
-        {/* Title Input */}
-        <View style={styles.section}>
-          <Text style={styles.label}>Petition Title</Text>
-          <TextInput
-            style={styles.titleInput}
-            placeholder="Petition for Enhanced Community Green"
-            value={title}
-            onChangeText={setTitle}
-            placeholderTextColor="#8E8E93"
-          />
+  return (
+    <SafeAreaView style={styles.safeArea}>
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+      <View style={styles.container}>
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+            <Text style={styles.backIcon}>←</Text>
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Compose Petition</Text>
+          <View style={styles.backButton} />
         </View>
 
-        {/* Anonymous Toggle */}
-        <View style={styles.section}>
-          <View style={styles.toggleRow}>
-            <View style={styles.toggleInfo}>
-              <Text style={styles.toggleTitle}>Publish Anonymously</Text>
-              <Text style={styles.toggleSubtitle}>Your identity will not be publicly visible.</Text>
-            </View>
-            <Switch
-              value={isAnonymous}
-              onValueChange={setIsAnonymous}
-              trackColor={{ false: '#E5E5EA', true: '#0066FF' }}
-              thumbColor="#fff"
+        <ScrollView 
+          style={styles.content}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={true}
+        >
+          {/* Title Input */}
+          <View style={styles.section}>
+            <Text style={styles.label}>Petition Title</Text>
+            <TextInput
+              style={styles.titleInput}
+              placeholder="Petition for Enhanced Community Green"
+              value={title}
+              onChangeText={setTitle}
+              placeholderTextColor="#8E8E93"
             />
           </View>
-        </View>
 
-        {/* Formatting Toolbar */}
-        <View style={styles.toolbar}>
-          <TouchableOpacity style={styles.toolButton}>
-            <Text style={styles.toolIcon}>B</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.toolButton}>
-            <Text style={styles.toolIcon}>≡</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.toolButton}>
-            <Text style={styles.toolIcon}>🔗</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.toolButton}>
-            <Text style={styles.toolIcon}>📎</Text>
-          </TouchableOpacity>
-        </View>
+          {/* Anonymous Toggle */}
+          <View style={styles.section}>
+            <View style={styles.toggleRow}>
+              <View style={styles.toggleInfo}>
+                <Text style={styles.toggleTitle}>Publish Anonymously</Text>
+                <Text style={styles.toggleSubtitle}>Your identity will not be publicly visible.</Text>
+              </View>
+              <Switch
+                value={isAnonymous}
+                onValueChange={setIsAnonymous}
+                trackColor={{ false: '#E5E5EA', true: '#0066FF' }}
+                thumbColor="#fff"
+              />
+            </View>
+          </View>
 
-        {/* Description Input */}
-        <View style={styles.section}>
-          <TextInput
-            style={styles.descriptionInput}
-            placeholder="Dear Local Council,
+          {/* Formatting Toolbar */}
+          <View style={styles.toolbar}>
+            <TouchableOpacity style={styles.toolButton}>
+              <Text style={styles.toolIcon}>B</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.toolButton}>
+              <Text style={styles.toolIcon}>≡</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.toolButton}>
+              <Text style={styles.toolIcon}>🔗</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.toolButton}>
+              <Text style={styles.toolIcon}>📎</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Description Input */}
+          <View style={styles.section}>
+            <TextInput
+              style={styles.descriptionInput}
+              placeholder="Dear Local Council,
 
 We, the undersigned residents of Springfield, are writing to advocate for the urgent enhancement and expansion of our community's green spaces. The current availability of parks and recreational areas is insufficient to meet the growing needs of"
-            value={description}
-            onChangeText={setDescription}
-            multiline
-            textAlignVertical="top"
-            placeholderTextColor="#8E8E93"
-          />
-        </View>
-
-        {/* Invite Lawyers */}
-        <TouchableOpacity 
-          style={styles.inviteSection}
-          onPress={() => {}}
-        >
-          <Text style={styles.inviteIcon}>⚖️</Text>
-          <Text style={styles.inviteText}>Invite Lawyers</Text>
-          <Text style={styles.expandIcon}>›</Text>
-        </TouchableOpacity>
-
-        {/* AI Suggestions */}
-        <TouchableOpacity 
-          style={styles.aiSection}
-          onPress={() => setShowAISuggestions(!showAISuggestions)}
-        >
-          <Text style={styles.aiIcon}>💡</Text>
-          <Text style={styles.aiText}>Get AI Suggestions</Text>
-          <Text style={styles.expandIcon}>{showAISuggestions ? '▼' : '›'}</Text>
-        </TouchableOpacity>
-
-        {showAISuggestions && (
-          <View style={styles.aiSuggestionsBox}>
-            <Text style={styles.aiSuggestionTitle}>AI Recommendations:</Text>
-            <Text style={styles.aiSuggestionText}>
-              • Consider adding specific statistics about current green space availability
-            </Text>
-            <Text style={styles.aiSuggestionText}>
-              • Include examples from similar successful petitions
-            </Text>
-            <Text style={styles.aiSuggestionText}>
-              • Mention community health benefits to strengthen your case
-            </Text>
-            <Text style={styles.aiSuggestionText}>
-              • Add a clear call-to-action for local officials
-            </Text>
+              value={description}
+              onChangeText={setDescription}
+              multiline
+              textAlignVertical="top"
+              placeholderTextColor="#8E8E93"
+            />
           </View>
-        )}
 
-        {/* Points Preview */}
-        <View style={styles.pointsPreview}>
-          <Text style={styles.pointsIcon}>🎯</Text>
-          <Text style={styles.pointsText}>You'll earn <Text style={styles.pointsBold}>10 points</Text> for creating this petition!</Text>
-        </View>
-
-        {/* Action Buttons */}
-        <View style={styles.buttonContainer}>
-          <TouchableOpacity style={styles.previewButton}>
-            <Text style={styles.previewButtonText}>Preview</Text>
-          </TouchableOpacity>
-
+          {/* Invite Lawyers */}
           <TouchableOpacity 
-            style={[styles.publishButton, submitting && styles.publishButtonDisabled]}
-            onPress={handleSubmit}
-            disabled={submitting}
+            style={styles.inviteSection}
+            onPress={() => {}}
           >
-            <Text style={styles.publishButtonText}>
-              {submitting ? 'Publishing...' : 'Publish'}
-            </Text>
+            <Text style={styles.inviteIcon}>⚖️</Text>
+            <Text style={styles.inviteText}>Invite Lawyers</Text>
+            <Text style={styles.expandIcon}>›</Text>
           </TouchableOpacity>
-        </View>
-      </ScrollView>
-    </View>
+
+          {/* AI Suggestions */}
+          <TouchableOpacity 
+            style={styles.aiSection}
+            onPress={() => setShowAISuggestions(!showAISuggestions)}
+          >
+            <Text style={styles.aiIcon}>💡</Text>
+            <Text style={styles.aiText}>Get AI Suggestions</Text>
+            <Text style={styles.expandIcon}>{showAISuggestions ? '▼' : '›'}</Text>
+          </TouchableOpacity>
+
+          {showAISuggestions && (
+            <View style={styles.aiSuggestionsBox}>
+              <Text style={styles.aiSuggestionTitle}>AI Recommendations:</Text>
+              <Text style={styles.aiSuggestionText}>
+                • Consider adding specific statistics about current green space availability
+              </Text>
+              <Text style={styles.aiSuggestionText}>
+                • Include examples from similar successful petitions
+              </Text>
+              <Text style={styles.aiSuggestionText}>
+                • Mention community health benefits to strengthen your case
+              </Text>
+              <Text style={styles.aiSuggestionText}>
+                • Add a clear call-to-action for local officials
+              </Text>
+            </View>
+          )}
+
+          {/* Points Preview */}
+          <View style={styles.pointsPreview}>
+            <Text style={styles.pointsIcon}>🎯</Text>
+            <Text style={styles.pointsText}>You'll earn <Text style={styles.pointsBold}>10 points</Text> for creating this petition!</Text>
+          </View>
+
+          {/* Action Buttons */}
+          <View style={styles.buttonContainer}>
+            <TouchableOpacity style={styles.previewButton}>
+              <Text style={styles.previewButtonText}>Preview</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={[styles.publishButton, submitting && styles.publishButtonDisabled]}
+              onPress={handleSubmit}
+              disabled={submitting}
+            >
+              <Text style={styles.publishButtonText}>
+                {submitting ? 'Publishing...' : 'Publish'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      </View>
+    </SafeAreaView>
   );
 }
 
+
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
+  },
   container: {
     flex: 1,
     backgroundColor: '#F2F2F7',
@@ -208,7 +232,7 @@ const styles = StyleSheet.create({
   header: {
     backgroundColor: '#FFFFFF',
     paddingHorizontal: 20,
-    paddingTop: 50,
+    paddingTop: 15,
     paddingBottom: 15,
     flexDirection: 'row',
     alignItems: 'center',
@@ -230,6 +254,9 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: 120, // ✅ ADDED: Space for tab bar
   },
   section: {
     backgroundColor: '#FFFFFF',

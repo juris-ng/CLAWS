@@ -1,10 +1,9 @@
+// supabase.js
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient } from '@supabase/supabase-js';
+import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import 'react-native-url-polyfill/auto';
-
-const supabaseUrl = 'https://ylwptxqmnlgaokukmcqk.supabase.co';
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlsd3B0eHFtbmxnYW9rdWttY3FrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk4MzM4MjIsImV4cCI6MjA3NTQwOTgyMn0.SkdUk3ctUYumQnb8Vi0XAOkLC3mhCgvYmzGyS-uV6TQ';
 
 // Custom storage that works on both web and mobile
 class SupabaseStorage {
@@ -35,11 +34,26 @@ class SupabaseStorage {
   }
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    storage: new SupabaseStorage(),
-    autoRefreshToken: true,
-    persistSession: true,
-    detectSessionInUrl: false,
-  },
-});
+// Get Supabase config from environment variables (via app.json extra)
+const supabaseUrl = Constants.expoConfig?.extra?.supabaseUrl;
+const supabaseAnonKey = Constants.expoConfig?.extra?.supabaseAnonKey;
+
+// Initialize Supabase client
+export const supabase = createClient(
+  supabaseUrl,
+  supabaseAnonKey,
+  {
+    auth: {
+      storage: new SupabaseStorage(),
+      autoRefreshToken: true,
+      persistSession: true,
+      detectSessionInUrl: false,
+    },
+  }
+);
+
+// Export config for backward compatibility (if other modules use it)
+export const CONFIG = {
+  SUPABASE_URL: supabaseUrl,
+  SUPABASE_ANON_KEY: supabaseAnonKey,
+};

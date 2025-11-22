@@ -1,654 +1,1076 @@
-import React, { useEffect, useState } from 'react';
+// screens/petition/CreatePetitionScreen.js
+import { Ionicons } from '@expo/vector-icons';
+import { Picker } from '@react-native-picker/picker';
+import * as ImagePicker from 'expo-image-picker';
+import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
   Image,
-  KeyboardAvoidingView,
+  Modal,
   Platform,
+  SafeAreaView,
   ScrollView,
+  StatusBar,
   StyleSheet,
+  Switch,
   Text,
-  TextInput, TouchableOpacity,
-  View
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { supabase } from '../../supabase';
-import { PointsService } from '../../utils/pointsService';
-import { ProfileService } from '../../utils/profileService';
-import { SearchService } from '../../utils/searchService';
-import { UploadService } from '../../utils/uploadService';
-import { validatePetitionForm } from '../../utils/validationSchemas';
+import { GeminiAIService } from '../../utils/geminiAIService';
+import { getCategoryInfo, getRandomCategoryImage } from '../../utils/petitionCategoriesService';
+import { PetitionService } from '../../utils/petitionService';
 
-export default function CreatePetitionScreen({ user, profile, onBack, onSuccess }) {
-  const [formData, setFormData] = useState({
-    title: '',
-    description: '',
-    category: '',
-  });
-  const [errors, setErrors] = useState({});
+const COLORS = {
+  primary: '#0047AB',
+  primaryDark: '#003580',
+  primaryLight: '#E3F2FD',
+  black: '#000000',
+  darkGray: '#1A1A1A',
+  mediumGray: '#666666',
+  lightGray: '#E5E5E5',
+  veryLightGray: '#F5F5F5',
+  white: '#FFFFFF',
+  background: '#F8F9FA',
+  success: '#4CAF50',
+  warning: '#FF9800',
+  error: '#F44336',
+};
+
+const CreatePetitionScreen = ({ navigation }) => {
+  const [isAnonymous, setIsAnonymous] = useState(false);
+  const [anonymousReason, setAnonymousReason] = useState('');
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [category, setCategory] = useState('education');
+  const [targetAudience, setTargetAudience] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [userIsAnonymous, setUserIsAnonymous] = useState(false);
+  const [aiProcessing, setAiProcessing] = useState(false);
+
+  // ✅ NEW: Title suggestions modal state
+  const [showTitleModal, setShowTitleModal] = useState(false);
+  const [titleSuggestions, setTitleSuggestions] = useState([]);
+
+  // Image states
   const [selectedImage, setSelectedImage] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [categories, setCategories] = useState([]);
-  const [draftId, setDraftId] = useState(null);
-  const [showImageOptions, setShowImageOptions] = useState(false);
-  const [characterCounts, setCharacterCounts] = useState({
-    title: 0,
-    description: 0,
-  });
+  const [previewImage, setPreviewImage] = useState(null);
+  const [useAutoImage, setUseAutoImage] = useState(true);
 
   useEffect(() => {
-    loadCategories();
-    loadDraft();
+    checkUserAnonymousStatus();
+    updateAutoImage('education');
   }, []);
 
-  const loadCategories = async () => {
-    const cats = await SearchService.getCategories();
-    setCategories(cats);
-  };
-
-  const loadDraft = async () => {
-    // Load any existing draft
-    const { data } = await supabase
-      .from('petition_drafts')
-      .select('*')
-      .eq('member_id', user.id)
-      .order('updated_at', { ascending: false })
-      .limit(1)
-      .single();
-
-    if (data) {
-      setFormData({
-        title: data.title || '',
-        description: data.description || '',
-        category: data.category || '',
-      });
-      setSelectedImage(data.image_url ? { uri: data.image_url } : null);
-      setDraftId(data.id);
-      setCharacterCounts({
-        title: data.title?.length || 0,
-        description: data.description?.length || 0,
-      });
+  useEffect(() => {
+    if (useAutoImage) {
+      updateAutoImage(category);
     }
-  };
+  }, [category, useAutoImage]);
 
-  const saveDraft = async () => {
+  const checkUserAnonymousStatus = async () => {
     try {
-      const draftData = {
-        member_id: user.id,
-        ...formData,
-        image_url: selectedImage?.uri || null,
-        updated_at: new Date().toISOString(),
-      };
+      const { data: { user } } = await supabase.auth.getUser();
+      const { data } = await supabase
+        .from('members')
+        .select('is_anonymous')
+        .eq('id', user.id)
+        .single();
 
-      if (draftId) {
-        await supabase
-          .from('petition_drafts')
-          .update(draftData)
-          .eq('id', draftId);
-      } else {
-        const { data } = await supabase
-          .from('petition_drafts')
-          .insert([draftData])
-          .select()
-          .single();
-        setDraftId(data.id);
+      if (data) {
+        setUserIsAnonymous(data.is_anonymous);
+        setIsAnonymous(data.is_anonymous);
       }
-
-      Alert.alert('Success', 'Draft saved successfully!');
     } catch (error) {
-      console.error('Save draft error:', error);
+      console.error('Error checking anonymous status:', error);
     }
   };
 
-  const handleInputChange = (field, value) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
-    setCharacterCounts(prev => ({ ...prev, [field]: value.length }));
-    
-    // Clear error for this field
-    if (errors[field]) {
-      setErrors(prev => {
-        const newErrors = { ...prev };
-        delete newErrors[field];
-        return newErrors;
+  const updateAutoImage = (selectedCategory) => {
+    const autoImage = getRandomCategoryImage(selectedCategory);
+    setPreviewImage(autoImage);
+  };
+
+  const pickImage = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [16, 9],
+        quality: 0.8,
       });
+
+      if (!result.canceled) {
+        const uri = result.assets[0].uri;
+        setSelectedImage(uri);
+        setPreviewImage(uri);
+        setUseAutoImage(false);
+      }
+    } catch (error) {
+      console.error('Error picking image:', error);
+      Alert.alert('Error', 'Failed to pick image');
     }
   };
 
-  const handleImagePick = async (source) => {
-    setShowImageOptions(false);
-    let image;
-
-    if (source === 'camera') {
-      image = await UploadService.takePhoto();
-    } else {
-      image = await UploadService.pickImage();
-    }
-
-    if (image) {
-      setSelectedImage(image);
+  const handleRegenerateImage = () => {
+    if (useAutoImage) {
+      updateAutoImage(category);
     }
   };
 
-  const handleRemoveImage = () => {
+  // AI Functions
+  const handleImproveWithAI = async () => {
+    if (!description || description.trim().length < 20) {
+      Alert.alert('Error', 'Write a description first (at least 20 characters)');
+      return;
+    }
+
+    setAiProcessing(true);
+    try {
+      const result = await GeminiAIService.improvePetition(description);
+      
+      if (result.success) {
+        Alert.alert(
+          '✨ AI Improved Version',
+          result.improvedText,
+          [
+            { text: 'Keep Original', style: 'cancel' },
+            { 
+              text: 'Use AI Version', 
+              onPress: () => setDescription(result.improvedText)
+            }
+          ]
+        );
+      } else {
+        Alert.alert('Error', 'AI service is temporarily unavailable. Please try again.');
+      }
+    } catch (error) {
+      console.error('AI improvement error:', error);
+      Alert.alert('Error', 'Failed to improve petition with AI');
+    } finally {
+      setAiProcessing(false);
+    }
+  };
+
+  // ✅ UPDATED: Better title suggestions with modal
+  const handleSuggestTitles = async () => {
+    if (!description || description.trim().length < 20) {
+      Alert.alert('Error', 'Write a description first (at least 20 characters)');
+      return;
+    }
+
+    setAiProcessing(true);
+    try {
+      const result = await GeminiAIService.suggestTitles(description);
+      
+      if (result.success) {
+        // Parse the titles (assuming they come numbered 1., 2., 3.)
+        const titlesArray = result.titles
+          .split('\n')
+          .filter(line => line.trim())
+          .map(line => line.replace(/^\d+\.\s*/, '').trim())
+          .filter(title => title.length > 0)
+          .slice(0, 3);
+
+        setTitleSuggestions(titlesArray);
+        setShowTitleModal(true);
+      } else {
+        Alert.alert('Error', 'AI service is temporarily unavailable. Please try again.');
+      }
+    } catch (error) {
+      console.error('AI title suggestion error:', error);
+      Alert.alert('Error', 'Failed to generate title suggestions');
+    } finally {
+      setAiProcessing(false);
+    }
+  };
+
+  const handleCheckTone = async () => {
+    if (!description || description.trim().length < 20) {
+      Alert.alert('Error', 'Write a description first (at least 20 characters)');
+      return;
+    }
+
+    setAiProcessing(true);
+    try {
+      const result = await GeminiAIService.analyzeSentiment(description);
+      
+      if (result.success) {
+        const sentimentEmoji = {
+          positive: '😊',
+          neutral: '😐',
+          negative: '😟'
+        };
+
+        const toneAdvice = {
+          positive: 'Your petition has a positive, constructive tone. This is great for encouraging support!',
+          neutral: 'Your petition has a neutral tone. Consider adding more emotion to connect with readers.',
+          negative: 'Your petition has a negative tone. Consider reframing to be more solutions-focused.'
+        };
+
+        Alert.alert(
+          `${sentimentEmoji[result.sentiment] || '📊'} Sentiment Analysis`,
+          `Tone: ${result.sentiment.toUpperCase()}\n\n${toneAdvice[result.sentiment] || 'Your tone analysis is complete.'}`
+        );
+      } else {
+        Alert.alert('Error', 'AI service is temporarily unavailable. Please try again.');
+      }
+    } catch (error) {
+      console.error('AI sentiment analysis error:', error);
+      Alert.alert('Error', 'Failed to analyze sentiment');
+    } finally {
+      setAiProcessing(false);
+    }
+  };
+
+  const validateForm = () => {
+    if (title.trim().length < 10) {
+      Alert.alert('Error', 'Title must be at least 10 characters');
+      return false;
+    }
+    if (description.trim().length < 50) {
+      Alert.alert('Error', 'Description must be at least 50 characters');
+      return false;
+    }
+    if (!category) {
+      Alert.alert('Error', 'Please select a category');
+      return false;
+    }
+    if (isAnonymous && anonymousReason.trim().length < 20) {
+      Alert.alert('Error', 'Please provide a reason for anonymous petition (min 20 characters)');
+      return false;
+    }
+    return true;
+  };
+
+  const handleSubmit = async () => {
+    if (!validateForm()) return;
+
+    const anonymityMessage = isAnonymous
+      ? 'Your identity will be protected in this petition.'
+      : 'Your name will be visible as the petition creator.';
+
     Alert.alert(
-      'Remove Image',
-      'Are you sure you want to remove this image?',
+      'Submit Petition',
+      `${anonymityMessage}\n\nYour petition will be reviewed before publication. Continue?`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Remove',
-          style: 'destructive',
-          onPress: () => setSelectedImage(null),
+          text: 'Submit',
+          onPress: async () => {
+            setSubmitting(true);
+            try {
+              const petitionData = {
+                title: title.trim(),
+                description: description.trim(),
+                category,
+                targetAudience: targetAudience.trim() || null,
+                isAnonymous,
+                anonymousReason: isAnonymous ? anonymousReason.trim() : null,
+                imageUrl: selectedImage || (useAutoImage ? previewImage : null),
+              };
+
+              const result = await PetitionService.createPetition(petitionData);
+
+              if (result.success) {
+                Alert.alert('Success', 'Your petition has been submitted for review.', [
+                  {
+                    text: 'OK',
+                    onPress: () => {
+                      setTitle('');
+                      setDescription('');
+                      setTargetAudience('');
+                      setAnonymousReason('');
+                      setSelectedImage(null);
+                      setPreviewImage(null);
+                      setUseAutoImage(true);
+                      navigation.navigate('Home');
+                    },
+                  },
+                ]);
+              } else {
+                Alert.alert('Error', result.error || 'Failed to submit petition');
+              }
+            } catch (error) {
+              console.error('Error submitting petition:', error);
+              Alert.alert('Error', 'Failed to submit petition');
+            } finally {
+              setSubmitting(false);
+            }
+          },
         },
       ]
     );
   };
 
-  const handleSubmit = async () => {
-    // Validate form
-    const validation = validatePetitionForm(formData);
-    if (!validation.isValid) {
-      setErrors(validation.errors);
-      Alert.alert('Validation Error', 'Please fix the errors in the form');
-      return;
-    }
-
-    setLoading(true);
-
-    try {
-      let imageUrl = null;
-
-      // Upload image if selected
-      if (selectedImage && selectedImage.uri && !selectedImage.uri.startsWith('http')) {
-        imageUrl = await UploadService.uploadFile(
-          user.id,
-          selectedImage.uri,
-          selectedImage.fileName || 'petition-image.jpg'
-        );
-      } else if (selectedImage?.uri) {
-        imageUrl = selectedImage.uri;
-      }
-
-      // Create petition
-      const { data, error } = await supabase
-        .from('petitions')
-        .insert([{
-          member_id: user.id,
-          title: formData.title,
-          description: formData.description,
-          category: formData.category,
-          image_url: imageUrl,
-          status: 'active',
-        }])
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      // Award points for creating petition
-      await PointsService.awardPoints(user.id, 'member', 'petition_created', data.id);
-
-      // Log activity
-      await ProfileService.logActivity(user.id, 'petition_created', {
-        petition_id: data.id,
-        petition_title: formData.title,
-        petition_category: formData.category,
-        timestamp: new Date().toISOString(),
-      });
-
-      // Delete draft if exists
-      if (draftId) {
-        await supabase
-          .from('petition_drafts')
-          .delete()
-          .eq('id', draftId);
-      }
-
-      Alert.alert(
-        'Success! 🎉',
-        'Your petition has been created successfully! You earned +5 points.',
-        [{ text: 'OK', onPress: () => onSuccess && onSuccess(data) }]
-      );
-    } catch (error) {
-      console.error('Submit error:', error);
-      Alert.alert('Error', 'Failed to create petition. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const categoryInfo = getCategoryInfo(category);
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
-      {/* Header */}
+    <SafeAreaView style={styles.safeArea}>
+      <StatusBar barStyle="dark-content" backgroundColor={COLORS.white} />
+      
+      {/* CLEAN WHITE HEADER */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={onBack} style={styles.backButton}>
-          <Text style={styles.backIcon}>←</Text>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+          <Ionicons name="arrow-back" size={24} color={COLORS.darkGray} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Create Petition</Text>
-        <TouchableOpacity onPress={saveDraft}>
-          <Text style={styles.draftButton}>Save Draft</Text>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.headerTitle}>Create Petition</Text>
+          <Text style={styles.headerSubtitle}>Make your voice heard</Text>
+        </View>
+        <TouchableOpacity style={styles.helpButton}>
+          <Ionicons name="help-circle-outline" size={24} color={COLORS.mediumGray} />
         </TouchableOpacity>
       </View>
 
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        {/* Form */}
-        <View style={styles.form}>
-          {/* Title Input */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>
-              Title <Text style={styles.required}>*</Text>
-            </Text>
-            <TextInput
-              style={[styles.input, errors.title && styles.inputError]}
-              placeholder="Enter a clear, concise title..."
-              value={formData.title}
-              onChangeText={(text) => handleInputChange('title', text)}
-              maxLength={150}
-            />
-            <View style={styles.inputFooter}>
-              {errors.title && (
-                <Text style={styles.errorText}>{errors.title}</Text>
-              )}
-              <Text style={styles.characterCount}>
-                {characterCounts.title}/150
-              </Text>
-            </View>
+      <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+        {/* Image Section */}
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <Ionicons name="image-outline" size={20} color={COLORS.primary} />
+            <Text style={styles.cardTitle}>Petition Image</Text>
           </View>
 
-          {/* Category Selector */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>
-              Category <Text style={styles.required}>*</Text>
-            </Text>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.categoriesScroll}
-            >
-              {categories.map((cat) => (
-                <TouchableOpacity
-                  key={cat.id}
-                  style={[
-                    styles.categoryChip,
-                    formData.category === cat.id && styles.categoryChipActive
-                  ]}
-                  onPress={() => handleInputChange('category', cat.id)}
-                >
-                  <Text style={styles.categoryIcon}>{cat.icon}</Text>
-                  <Text
-                    style={[
-                      styles.categoryText,
-                      formData.category === cat.id && styles.categoryTextActive
-                    ]}
-                  >
-                    {cat.name}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-            {errors.category && (
-              <Text style={styles.errorText}>{errors.category}</Text>
+          <View style={styles.imagePreviewContainer}>
+            {previewImage ? (
+              <Image source={{ uri: previewImage }} style={styles.imagePreview} resizeMode="cover" />
+            ) : (
+              <View style={styles.imagePlaceholder}>
+                <Ionicons name="images-outline" size={48} color={COLORS.lightGray} />
+                <Text style={styles.placeholderText}>No image selected</Text>
+              </View>
+            )}
+
+            {useAutoImage && previewImage && (
+              <View style={styles.autoImageBadge}>
+                <Ionicons name="sparkles" size={12} color={COLORS.warning} />
+                <Text style={styles.autoImageBadgeText}>Auto</Text>
+              </View>
             )}
           </View>
 
-          {/* Description Input */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>
-              Description <Text style={styles.required}>*</Text>
-            </Text>
-            <TextInput
-              style={[
-                styles.textArea,
-                errors.description && styles.inputError
-              ]}
-              placeholder="Describe your petition in detail. What problem are you addressing? What change do you want to see?"
-              value={formData.description}
-              onChangeText={(text) => handleInputChange('description', text)}
-              multiline
-              numberOfLines={8}
-              maxLength={5000}
-              textAlignVertical="top"
-            />
-            <View style={styles.inputFooter}>
-              {errors.description && (
-                <Text style={styles.errorText}>{errors.description}</Text>
-              )}
-              <Text style={styles.characterCount}>
-                {characterCounts.description}/5000
+          <View style={styles.imageButtonsRow}>
+            <TouchableOpacity
+              style={[styles.imageButton, useAutoImage && styles.imageButtonActive]}
+              onPress={() => {
+                setUseAutoImage(true);
+                setSelectedImage(null);
+                updateAutoImage(category);
+              }}
+            >
+              <Ionicons name="sparkles" size={18} color={useAutoImage ? COLORS.white : COLORS.primary} />
+              <Text style={[styles.imageButtonText, useAutoImage && styles.imageButtonTextActive]}>
+                Auto Image
               </Text>
-            </View>
-          </View>
+            </TouchableOpacity>
 
-          {/* Image Upload */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Featured Image (Optional)</Text>
-            {selectedImage ? (
-              <View style={styles.imagePreview}>
-                <Image
-                  source={{ uri: selectedImage.uri }}
-                  style={styles.previewImage}
-                />
-                <TouchableOpacity
-                  style={styles.removeImageButton}
-                  onPress={handleRemoveImage}
-                >
-                  <Text style={styles.removeImageIcon}>×</Text>
-                </TouchableOpacity>
-              </View>
-            ) : (
-              <TouchableOpacity
-                style={styles.uploadButton}
-                onPress={() => setShowImageOptions(true)}
-              >
-                <Text style={styles.uploadIcon}>📷</Text>
-                <Text style={styles.uploadText}>Add Image</Text>
-                <Text style={styles.uploadHint}>
-                  Images help your petition stand out
-                </Text>
+            <TouchableOpacity style={[styles.imageButton, !useAutoImage && styles.imageButtonActive]} onPress={pickImage}>
+              <Ionicons name="cloud-upload-outline" size={18} color={!useAutoImage ? COLORS.white : COLORS.primary} />
+              <Text style={[styles.imageButtonText, !useAutoImage && styles.imageButtonTextActive]}>
+                Upload
+              </Text>
+            </TouchableOpacity>
+
+            {useAutoImage && (
+              <TouchableOpacity style={styles.refreshButton} onPress={handleRegenerateImage}>
+                <Ionicons name="refresh" size={18} color={COLORS.primary} />
               </TouchableOpacity>
             )}
           </View>
+        </View>
 
-          {/* Tips Section */}
-          <View style={styles.tipsCard}>
-            <Text style={styles.tipsTitle}>💡 Tips for Success</Text>
-            <Text style={styles.tipItem}>• Be clear and specific about the issue</Text>
-            <Text style={styles.tipItem}>• Explain why this matters to the community</Text>
-            <Text style={styles.tipItem}>• Include relevant facts and data</Text>
-            <Text style={styles.tipItem}>• Propose a realistic solution</Text>
-            <Text style={styles.tipItem}>• Add a compelling image</Text>
+        {/* Anonymous Toggle */}
+        <View style={styles.card}>
+          <View style={styles.anonymousHeader}>
+            <View style={styles.anonymousHeaderLeft}>
+              <Ionicons name="shield-checkmark-outline" size={20} color={isAnonymous ? COLORS.success : COLORS.mediumGray} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.cardTitle}>Anonymous Petition</Text>
+                <Text style={styles.cardSubtitle}>
+                  {isAnonymous ? 'Identity protected' : 'Name will be visible'}
+                </Text>
+              </View>
+            </View>
+            <Switch
+              value={isAnonymous}
+              onValueChange={setIsAnonymous}
+              trackColor={{ false: COLORS.lightGray, true: COLORS.success }}
+              thumbColor={COLORS.white}
+            />
           </View>
 
-          {/* Submit Button */}
-          <TouchableOpacity
-            style={[styles.submitButton, loading && styles.submitButtonDisabled]}
-            onPress={handleSubmit}
-            disabled={loading}
-          >
-            {loading ? (
-              <ActivityIndicator color="#FFFFFF" />
-            ) : (
-              <Text style={styles.submitButtonText}>Create Petition</Text>
-            )}
-          </TouchableOpacity>
+          {isAnonymous && (
+            <View style={styles.anonymousInfo}>
+              <View style={styles.infoBox}>
+                <Ionicons name="information-circle-outline" size={18} color={COLORS.success} />
+                <Text style={styles.infoText}>
+                  Anonymous petitions protect activists from potential retaliation
+                </Text>
+              </View>
+              <TextInput
+                style={styles.textArea}
+                value={anonymousReason}
+                onChangeText={setAnonymousReason}
+                placeholder="Why should this petition be anonymous? (Required for review)"
+                placeholderTextColor={COLORS.mediumGray}
+                multiline
+                numberOfLines={4}
+                textAlignVertical="top"
+                maxLength={500}
+              />
+              <Text style={styles.charCount}>{anonymousReason.length}/500</Text>
+            </View>
+          )}
         </View>
+
+        {/* Title */}
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <Ionicons name="document-text-outline" size={20} color={COLORS.primary} />
+            <Text style={styles.cardTitle}>Petition Title *</Text>
+          </View>
+          <TextInput
+            style={styles.input}
+            value={title}
+            onChangeText={setTitle}
+            placeholder="e.g., Improve Student Library Access"
+            placeholderTextColor={COLORS.mediumGray}
+            maxLength={200}
+          />
+          <Text style={styles.charCount}>{title.length}/200</Text>
+        </View>
+
+        {/* Category */}
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <Ionicons name="folder-outline" size={20} color={COLORS.primary} />
+            <Text style={styles.cardTitle}>Category *</Text>
+          </View>
+
+          <View style={styles.pickerWrapper}>
+            <Picker selectedValue={category} onValueChange={setCategory} style={styles.picker}>
+              <Picker.Item label="🎓 Education" value="education" />
+              <Picker.Item label="🏥 Healthcare" value="health" />
+              <Picker.Item label="🌱 Environment" value="environment" />
+              <Picker.Item label="⚖️ Human Rights" value="justice" />
+              <Picker.Item label="🏗️ Infrastructure" value="infrastructure" />
+              <Picker.Item label="🏛️ Governance" value="governance" />
+              <Picker.Item label="👥 Social Issues" value="economy" />
+              <Picker.Item label="📋 Other" value="other" />
+            </Picker>
+          </View>
+
+          {categoryInfo && (
+            <View style={[styles.categoryBadge, { borderLeftColor: categoryInfo.color }]}>
+              <Text style={styles.categoryIcon}>{categoryInfo.icon}</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.categoryName}>{categoryInfo.name}</Text>
+                <Text style={styles.categoryHint}>{categoryInfo.images?.length || 3}+ auto-images available</Text>
+              </View>
+            </View>
+          )}
+        </View>
+
+        {/* Description */}
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <Ionicons name="reader-outline" size={20} color={COLORS.primary} />
+            <Text style={styles.cardTitle}>Description *</Text>
+          </View>
+          <TextInput
+            style={[styles.input, styles.textArea]}
+            value={description}
+            onChangeText={setDescription}
+            placeholder="Describe the issue and what changes you're proposing..."
+            placeholderTextColor={COLORS.mediumGray}
+            multiline
+            numberOfLines={10}
+            textAlignVertical="top"
+            maxLength={2000}
+          />
+          <Text style={styles.charCount}>{description.length}/2000</Text>
+
+          {/* AI ACTIONS ROW */}
+          <View style={styles.aiActionsRow}>
+            <TouchableOpacity 
+              style={[styles.aiButton, aiProcessing && styles.aiButtonDisabled]}
+              onPress={handleImproveWithAI}
+              disabled={aiProcessing || !description}
+              activeOpacity={0.7}
+            >
+              {aiProcessing ? (
+                <ActivityIndicator size="small" color={COLORS.primary} />
+              ) : (
+                <Ionicons name="sparkles" size={18} color={COLORS.warning} />
+              )}
+              <Text style={styles.aiButtonText}>Improve</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={[styles.aiButton, aiProcessing && styles.aiButtonDisabled]}
+              onPress={handleSuggestTitles}
+              disabled={aiProcessing || !description}
+              activeOpacity={0.7}
+            >
+              {aiProcessing ? (
+                <ActivityIndicator size="small" color={COLORS.primary} />
+              ) : (
+                <Ionicons name="bulb-outline" size={18} color={COLORS.primary} />
+              )}
+              <Text style={styles.aiButtonText}>Titles</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={[styles.aiButton, aiProcessing && styles.aiButtonDisabled]}
+              onPress={handleCheckTone}
+              disabled={aiProcessing || !description}
+              activeOpacity={0.7}
+            >
+              {aiProcessing ? (
+                <ActivityIndicator size="small" color={COLORS.primary} />
+              ) : (
+                <Ionicons name="analytics-outline" size={18} color={COLORS.success} />
+              )}
+              <Text style={styles.aiButtonText}>Tone</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* AI Info Badge */}
+          <View style={styles.aiInfoBadge}>
+            <Ionicons name="sparkles" size={14} color={COLORS.warning} />
+            <Text style={styles.aiInfoText}>FREE AI-powered assistance • Powered by Google Gemini</Text>
+          </View>
+        </View>
+
+        {/* Target Audience */}
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <Ionicons name="people-outline" size={20} color={COLORS.primary} />
+            <Text style={styles.cardTitle}>Target Audience</Text>
+            <View style={styles.optionalBadge}>
+              <Text style={styles.optionalText}>Optional</Text>
+            </View>
+          </View>
+          <TextInput
+            style={styles.input}
+            value={targetAudience}
+            onChangeText={setTargetAudience}
+            placeholder="Who should address this? (e.g., University Administration)"
+            placeholderTextColor={COLORS.mediumGray}
+            maxLength={200}
+          />
+        </View>
+
+        {/* Tips */}
+        <View style={styles.tipsCard}>
+          <Ionicons name="bulb-outline" size={20} color={COLORS.warning} />
+          <Text style={styles.tipsText}>
+            Clear, specific petitions with detailed explanations are more likely to gain support and be approved quickly
+          </Text>
+        </View>
+
+        {/* Submit Button */}
+        <TouchableOpacity
+          style={[styles.submitButton, (submitting || aiProcessing) && styles.submitButtonDisabled]}
+          onPress={handleSubmit}
+          disabled={submitting || aiProcessing}
+          activeOpacity={0.8}
+        >
+          {submitting ? (
+            <>
+              <ActivityIndicator size="small" color={COLORS.white} />
+              <Text style={styles.submitButtonText}>Submitting...</Text>
+            </>
+          ) : (
+            <>
+              <Ionicons name="send" size={20} color={COLORS.white} />
+              <Text style={styles.submitButtonText}>Submit Petition</Text>
+            </>
+          )}
+        </TouchableOpacity>
+
+        <View style={styles.footer} />
       </ScrollView>
 
-      {/* Image Options Modal */}
-      {showImageOptions && (
+      {/* ✅ NEW: Title Suggestions Modal */}
+      <Modal
+        visible={showTitleModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowTitleModal(false)}
+      >
         <View style={styles.modalOverlay}>
-          <View style={styles.imageOptionsModal}>
-            <Text style={styles.modalTitle}>Add Image</Text>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <View style={styles.modalHeaderLeft}>
+                <Ionicons name="bulb" size={24} color={COLORS.warning} />
+                <Text style={styles.modalTitle}>AI Title Suggestions</Text>
+              </View>
+              <TouchableOpacity onPress={() => setShowTitleModal(false)}>
+                <Ionicons name="close-circle" size={28} color={COLORS.mediumGray} />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.modalSubtitle}>Tap a title to use it</Text>
+
+            <ScrollView style={styles.modalScroll} showsVerticalScrollIndicator={false}>
+              {titleSuggestions.map((suggestedTitle, index) => (
+                <TouchableOpacity
+                  key={index}
+                  style={styles.titleOption}
+                  onPress={() => {
+                    setTitle(suggestedTitle);
+                    setShowTitleModal(false);
+                    Alert.alert('✅ Title Added', 'The suggested title has been added!');
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.titleOptionNumber}>
+                    <Text style={styles.titleOptionNumberText}>{index + 1}</Text>
+                  </View>
+                  <Text style={styles.titleOptionText}>{suggestedTitle}</Text>
+                  <Ionicons name="chevron-forward" size={20} color={COLORS.lightGray} />
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+
             <TouchableOpacity
-              style={styles.imageOption}
-              onPress={() => handleImagePick('camera')}
+              style={styles.modalCloseButton}
+              onPress={() => setShowTitleModal(false)}
             >
-              <Text style={styles.imageOptionIcon}>📷</Text>
-              <Text style={styles.imageOptionText}>Take Photo</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.imageOption}
-              onPress={() => handleImagePick('library')}
-            >
-              <Text style={styles.imageOptionIcon}>🖼️</Text>
-              <Text style={styles.imageOptionText}>Choose from Library</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.cancelButton}
-              onPress={() => setShowImageOptions(false)}
-            >
-              <Text style={styles.cancelButtonText}>Cancel</Text>
+              <Text style={styles.modalCloseButtonText}>Close</Text>
             </TouchableOpacity>
           </View>
         </View>
-      )}
-    </KeyboardAvoidingView>
+      </Modal>
+    </SafeAreaView>
   );
-}
+};
 
 const styles = StyleSheet.create({
-  container: {
+  safeArea: {
     flex: 1,
-    backgroundColor: '#F2F2F7',
+    backgroundColor: COLORS.white,
+    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
   },
+
+  // Header
   header: {
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 20,
-    paddingTop: 50,
-    paddingBottom: 15,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    backgroundColor: COLORS.white,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E5EA',
+    borderBottomColor: COLORS.lightGray,
+    gap: 12,
   },
   backButton: {
-    width: 60,
-  },
-  backIcon: {
-    fontSize: 24,
-    color: '#0066FF',
+    padding: 4,
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    flex: 1,
-    textAlign: 'center',
+    fontSize: 20,
+    fontWeight: '700',
+    color: COLORS.darkGray,
   },
-  draftButton: {
-    fontSize: 16,
-    color: '#0066FF',
-    fontWeight: '600',
-  },
-  scrollView: {
-    flex: 1,
-  },
-  form: {
-    padding: 20,
-  },
-  inputGroup: {
-    marginBottom: 24,
-  },
-  label: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 8,
-    color: '#1C1C1E',
-  },
-  required: {
-    color: '#FF3B30',
-  },
-  input: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E5E5EA',
-    borderRadius: 10,
-    padding: 14,
-    fontSize: 16,
-  },
-  inputError: {
-    borderColor: '#FF3B30',
-  },
-  textArea: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E5E5EA',
-    borderRadius: 10,
-    padding: 14,
-    fontSize: 16,
-    minHeight: 150,
-  },
-  inputFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 6,
-  },
-  errorText: {
-    color: '#FF3B30',
+  headerSubtitle: {
     fontSize: 13,
+    color: COLORS.mediumGray,
+    marginTop: 2,
+  },
+  helpButton: {
+    padding: 4,
+  },
+
+  // Container
+  container: {
     flex: 1,
+    backgroundColor: COLORS.background,
   },
-  characterCount: {
-    fontSize: 13,
-    color: '#8E8E93',
+
+  // Card
+  card: {
+    backgroundColor: COLORS.white,
+    marginHorizontal: 16,
+    marginTop: 16,
+    borderRadius: 14,
+    padding: 16,
+    shadowColor: COLORS.black,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  categoriesScroll: {
-    gap: 10,
-  },
-  categoryChip: {
+  cardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#E5E5EA',
-    gap: 6,
-  },
-  categoryChipActive: {
-    backgroundColor: '#0066FF',
-    borderColor: '#0066FF',
-  },
-  categoryIcon: {
-    fontSize: 18,
-  },
-  categoryText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#1C1C1E',
-  },
-  categoryTextActive: {
-    color: '#FFFFFF',
-  },
-  uploadButton: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 2,
-    borderColor: '#E5E5EA',
-    borderStyle: 'dashed',
-    borderRadius: 10,
-    padding: 32,
-    alignItems: 'center',
-  },
-  uploadIcon: {
-    fontSize: 48,
+    gap: 8,
     marginBottom: 12,
   },
-  uploadText: {
+  cardTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#0066FF',
-    marginBottom: 4,
+    color: COLORS.darkGray,
+    flex: 1,
   },
-  uploadHint: {
+  cardSubtitle: {
     fontSize: 13,
-    color: '#8E8E93',
+    color: COLORS.mediumGray,
+    marginTop: 2,
+  },
+
+  // Image
+  imagePreviewContainer: {
+    width: '100%',
+    height: 180,
+    borderRadius: 12,
+    overflow: 'hidden',
+    backgroundColor: COLORS.veryLightGray,
+    borderWidth: 2,
+    borderColor: COLORS.lightGray,
+    marginBottom: 12,
   },
   imagePreview: {
-    position: 'relative',
-    borderRadius: 10,
-    overflow: 'hidden',
-  },
-  previewImage: {
     width: '100%',
-    height: 200,
-    borderRadius: 10,
+    height: '100%',
   },
-  removeImageButton: {
-    position: 'absolute',
-    top: 10,
-    right: 10,
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+  imagePlaceholder: {
+    width: '100%',
+    height: '100%',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  removeImageIcon: {
-    fontSize: 24,
-    color: '#FFFFFF',
-    lineHeight: 24,
-  },
-  tipsCard: {
-    backgroundColor: '#F0F7FF',
-    padding: 16,
-    borderRadius: 10,
-    marginBottom: 24,
-  },
-  tipsTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginBottom: 12,
-    color: '#0066FF',
-  },
-  tipItem: {
+  placeholderText: {
+    marginTop: 8,
     fontSize: 14,
-    color: '#3C3C43',
-    lineHeight: 22,
-    marginBottom: 4,
+    color: COLORS.mediumGray,
   },
-  submitButton: {
-    backgroundColor: '#0066FF',
-    padding: 18,
+  autoImageBadge: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  autoImageBadgeText: {
+    color: COLORS.warning,
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  imageButtonsRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  imageButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
     borderRadius: 10,
+    borderWidth: 2,
+    borderColor: COLORS.primary,
+    gap: 6,
+  },
+  imageButtonActive: {
+    backgroundColor: COLORS.primary,
+  },
+  imageButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.primary,
+  },
+  imageButtonTextActive: {
+    color: COLORS.white,
+  },
+  refreshButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 10,
+    backgroundColor: COLORS.primaryLight,
+    justifyContent: 'center',
     alignItems: 'center',
   },
+
+  // Anonymous
+  anonymousHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  anonymousHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    gap: 12,
+  },
+  anonymousInfo: {
+    marginTop: 16,
+  },
+  infoBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.success + '15',
+    padding: 12,
+    borderRadius: 10,
+    gap: 10,
+    marginBottom: 12,
+  },
+  infoText: {
+    fontSize: 13,
+    color: COLORS.success,
+    flex: 1,
+    lineHeight: 18,
+  },
+
+  // Form
+  input: {
+    backgroundColor: COLORS.veryLightGray,
+    borderRadius: 10,
+    padding: 14,
+    fontSize: 15,
+    color: COLORS.darkGray,
+    borderWidth: 1,
+    borderColor: COLORS.lightGray,
+  },
+  textArea: {
+    minHeight: 120,
+    textAlignVertical: 'top',
+  },
+  charCount: {
+    fontSize: 12,
+    color: COLORS.mediumGray,
+    textAlign: 'right',
+    marginTop: 6,
+  },
+  optionalBadge: {
+    backgroundColor: COLORS.veryLightGray,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  optionalText: {
+    fontSize: 11,
+    color: COLORS.mediumGray,
+    fontWeight: '600',
+  },
+
+  // AI Actions
+  aiActionsRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 16,
+  },
+  aiButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    backgroundColor: COLORS.primaryLight,
+    gap: 6,
+  },
+  aiButtonDisabled: {
+    opacity: 0.6,
+  },
+  aiButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: COLORS.primary,
+  },
+  aiInfoBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 12,
+    padding: 8,
+    backgroundColor: COLORS.warning + '10',
+    borderRadius: 8,
+    gap: 6,
+  },
+  aiInfoText: {
+    fontSize: 11,
+    color: COLORS.warning,
+    fontWeight: '600',
+  },
+
+  // Picker
+  pickerWrapper: {
+    backgroundColor: COLORS.veryLightGray,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: COLORS.lightGray,
+    overflow: 'hidden',
+    marginBottom: 12,
+  },
+  picker: {
+    height: 50,
+  },
+  categoryBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.veryLightGray,
+    padding: 12,
+    borderRadius: 10,
+    borderLeftWidth: 4,
+    gap: 12,
+  },
+  categoryIcon: {
+    fontSize: 28,
+  },
+  categoryName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.darkGray,
+    marginBottom: 2,
+  },
+  categoryHint: {
+    fontSize: 12,
+    color: COLORS.mediumGray,
+  },
+
+  // Tips
+  tipsCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.warning + '15',
+    marginHorizontal: 16,
+    marginTop: 16,
+    padding: 14,
+    borderRadius: 10,
+    gap: 12,
+  },
+  tipsText: {
+    fontSize: 13,
+    color: COLORS.warning,
+    flex: 1,
+    lineHeight: 18,
+  },
+
+  // Submit
+  submitButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.primary,
+    marginHorizontal: 16,
+    marginTop: 24,
+    padding: 16,
+    borderRadius: 12,
+    gap: 8,
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+  },
   submitButtonDisabled: {
-    backgroundColor: '#8E8E93',
+    backgroundColor: COLORS.mediumGray,
+    opacity: 0.6,
   },
   submitButtonText: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: 'bold',
+    color: COLORS.white,
+    fontSize: 16,
+    fontWeight: '700',
   },
+  footer: {
+    height: 40,
+  },
+
+  // ✅ NEW: Modal Styles
   modalOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
+    flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'flex-end',
   },
-  imageOptionsModal: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 20,
+  modalContent: {
+    backgroundColor: COLORS.white,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingTop: 20,
+    paddingBottom: Platform.OS === 'ios' ? 40 : 20,
+    maxHeight: '80%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    marginBottom: 8,
+  },
+  modalHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
   },
   modalTitle: {
     fontSize: 20,
-    fontWeight: 'bold',
-    textAlign: 'center',
-    marginBottom: 20,
+    fontWeight: '700',
+    color: COLORS.darkGray,
   },
-  imageOption: {
+  modalSubtitle: {
+    fontSize: 14,
+    color: COLORS.mediumGray,
+    paddingHorizontal: 20,
+    marginBottom: 16,
+  },
+  modalScroll: {
+    paddingHorizontal: 20,
+  },
+  titleOption: {
     flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: COLORS.veryLightGray,
     padding: 16,
-    backgroundColor: '#F2F2F7',
-    borderRadius: 10,
+    borderRadius: 12,
     marginBottom: 12,
+    gap: 12,
+    borderWidth: 1,
+    borderColor: COLORS.lightGray,
   },
-  imageOptionIcon: {
-    fontSize: 28,
-    marginRight: 16,
-  },
-  imageOptionText: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  cancelButton: {
-    padding: 16,
+  titleOptionNumber: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: COLORS.primary,
+    justifyContent: 'center',
     alignItems: 'center',
   },
-  cancelButtonText: {
-    fontSize: 16,
-    color: '#FF3B30',
+  titleOptionNumberText: {
+    color: COLORS.white,
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  titleOptionText: {
+    flex: 1,
+    fontSize: 15,
     fontWeight: '600',
+    color: COLORS.darkGray,
+    lineHeight: 20,
+  },
+  modalCloseButton: {
+    marginHorizontal: 20,
+    marginTop: 12,
+    padding: 16,
+    backgroundColor: COLORS.lightGray,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  modalCloseButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.darkGray,
   },
 });
+
+export default CreatePetitionScreen;

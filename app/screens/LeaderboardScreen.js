@@ -1,14 +1,18 @@
 import { useEffect, useState } from 'react';
 import {
-    FlatList,
-    RefreshControl, StatusBar,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  FlatList,
+  Platform,
+  RefreshControl,
+  SafeAreaView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { ResponsiveUtils } from '../../utils/responsive';
 import { SocialService } from '../../utils/socialService';
+
 
 export default function LeaderboardScreen({ user, profile, onBack, onViewProfile }) {
   const [timeframe, setTimeframe] = useState('all_time');
@@ -16,9 +20,11 @@ export default function LeaderboardScreen({ user, profile, onBack, onViewProfile
   const [loading, setLoading] = useState(false);
   const [userRank, setUserRank] = useState(null);
 
+
   useEffect(() => {
     loadLeaderboard();
   }, [timeframe]);
+
 
   const loadLeaderboard = async () => {
     setLoading(true);
@@ -31,12 +37,14 @@ export default function LeaderboardScreen({ user, profile, onBack, onViewProfile
     setLoading(false);
   };
 
+
   const getRankIcon = (rank) => {
     if (rank === 1) return '🥇';
     if (rank === 2) return '🥈';
     if (rank === 3) return '🥉';
     return `#${rank}`;
   };
+
 
   const getLevelColor = (level) => {
     if (level >= 9) return '#FFD700'; // Gold
@@ -45,8 +53,10 @@ export default function LeaderboardScreen({ user, profile, onBack, onViewProfile
     return '#0066FF';
   };
 
+
   const renderLeaderItem = ({ item, index }) => {
     const isCurrentUser = item.id === user.id;
+
 
     return (
       <TouchableOpacity
@@ -63,6 +73,7 @@ export default function LeaderboardScreen({ user, profile, onBack, onViewProfile
           </Text>
         </View>
 
+
         <View style={styles.leaderAvatar}>
           <Text style={styles.leaderAvatarText}>
             {item.full_name?.[0]?.toUpperCase() || '?'}
@@ -71,6 +82,7 @@ export default function LeaderboardScreen({ user, profile, onBack, onViewProfile
             <Text style={styles.levelBadgeText}>{item.level}</Text>
           </View>
         </View>
+
 
         <View style={styles.leaderInfo}>
           <Text style={styles.leaderName} numberOfLines={1}>
@@ -90,6 +102,7 @@ export default function LeaderboardScreen({ user, profile, onBack, onViewProfile
           </View>
         </View>
 
+
         {item.followers_count > 0 && (
           <View style={styles.followersCount}>
             <Text style={styles.followersCountText}>👥 {item.followers_count}</Text>
@@ -99,95 +112,108 @@ export default function LeaderboardScreen({ user, profile, onBack, onViewProfile
     );
   };
 
+
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
-      
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={onBack} style={styles.backButton}>
-          <Text style={styles.backIcon}>←</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>🏆 Leaderboard</Text>
-        <View style={{ width: 40 }} />
-      </View>
+      <View style={styles.container}>
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity onPress={onBack} style={styles.backButton}>
+            <Text style={styles.backIcon}>←</Text>
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>🏆 Leaderboard</Text>
+          <View style={{ width: 40 }} />
+        </View>
 
-      {/* Timeframe Tabs */}
-      <View style={styles.tabs}>
-        <TouchableOpacity
-          style={[styles.tab, timeframe === 'all_time' && styles.tabActive]}
-          onPress={() => setTimeframe('all_time')}
-        >
-          <Text style={[styles.tabText, timeframe === 'all_time' && styles.tabTextActive]}>
-            All Time
-          </Text>
-        </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[styles.tab, timeframe === 'monthly' && styles.tabActive]}
-          onPress={() => setTimeframe('monthly')}
-        >
-          <Text style={[styles.tabText, timeframe === 'monthly' && styles.tabTextActive]}>
-            This Month
-          </Text>
-        </TouchableOpacity>
+        {/* Timeframe Tabs */}
+        <View style={styles.tabs}>
+          <TouchableOpacity
+            style={[styles.tab, timeframe === 'all_time' && styles.tabActive]}
+            onPress={() => setTimeframe('all_time')}
+          >
+            <Text style={[styles.tabText, timeframe === 'all_time' && styles.tabTextActive]}>
+              All Time
+            </Text>
+          </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[styles.tab, timeframe === 'weekly' && styles.tabActive]}
-          onPress={() => setTimeframe('weekly')}
-        >
-          <Text style={[styles.tabText, timeframe === 'weekly' && styles.tabTextActive]}>
-            This Week
-          </Text>
-        </TouchableOpacity>
-      </View>
 
-      {/* Your Rank Card */}
-      {userRank && (
-        <View style={styles.yourRankCard}>
-          <Text style={styles.yourRankLabel}>Your Rank</Text>
-          <View style={styles.yourRankRow}>
-            <Text style={styles.yourRankNumber}>{getRankIcon(userRank.rank)}</Text>
-            <View style={styles.yourRankInfo}>
-              <Text style={styles.yourRankPoints}>
-                {timeframe === 'all_time' 
-                  ? userRank.total_points 
-                  : timeframe === 'monthly' 
-                    ? userRank.points_this_month 
-                    : userRank.points_this_week} points
-              </Text>
-              <Text style={styles.yourRankStats}>
-                {userRank.petitions_created} petitions • {userRank.votes_cast} votes • {userRank.comments_made} comments
-              </Text>
+          <TouchableOpacity
+            style={[styles.tab, timeframe === 'monthly' && styles.tabActive]}
+            onPress={() => setTimeframe('monthly')}
+          >
+            <Text style={[styles.tabText, timeframe === 'monthly' && styles.tabTextActive]}>
+              This Month
+            </Text>
+          </TouchableOpacity>
+
+
+          <TouchableOpacity
+            style={[styles.tab, timeframe === 'weekly' && styles.tabActive]}
+            onPress={() => setTimeframe('weekly')}
+          >
+            <Text style={[styles.tabText, timeframe === 'weekly' && styles.tabTextActive]}>
+              This Week
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+
+        {/* Your Rank Card */}
+        {userRank && (
+          <View style={styles.yourRankCard}>
+            <Text style={styles.yourRankLabel}>Your Rank</Text>
+            <View style={styles.yourRankRow}>
+              <Text style={styles.yourRankNumber}>{getRankIcon(userRank.rank)}</Text>
+              <View style={styles.yourRankInfo}>
+                <Text style={styles.yourRankPoints}>
+                  {timeframe === 'all_time' 
+                    ? userRank.total_points 
+                    : timeframe === 'monthly' 
+                      ? userRank.points_this_month 
+                      : userRank.points_this_week} points
+                </Text>
+                <Text style={styles.yourRankStats}>
+                  {userRank.petitions_created} petitions • {userRank.votes_cast} votes • {userRank.comments_made} comments
+                </Text>
+              </View>
             </View>
           </View>
-        </View>
-      )}
-
-      {/* Leaderboard List */}
-      <FlatList
-        data={leaderboard}
-        renderItem={renderLeaderItem}
-        keyExtractor={(item, index) => item.id || index.toString()}
-        contentContainerStyle={styles.listContainer}
-        refreshControl={
-          <RefreshControl refreshing={loading} onRefresh={loadLeaderboard} />
-        }
-        ListEmptyComponent={() => (
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyIcon}>🏆</Text>
-            <Text style={styles.emptyTitle}>No Rankings Yet</Text>
-            <Text style={styles.emptyText}>
-              Be the first to contribute and climb the leaderboard!
-            </Text>
-          </View>
         )}
-      />
-    </View>
+
+
+        {/* Leaderboard List */}
+        <FlatList
+          data={leaderboard}
+          renderItem={renderLeaderItem}
+          keyExtractor={(item, index) => item.id || index.toString()}
+          contentContainerStyle={styles.listContainer}
+          refreshControl={
+            <RefreshControl refreshing={loading} onRefresh={loadLeaderboard} />
+          }
+          ListEmptyComponent={() => (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyIcon}>🏆</Text>
+              <Text style={styles.emptyTitle}>No Rankings Yet</Text>
+              <Text style={styles.emptyText}>
+                Be the first to contribute and climb the leaderboard!
+              </Text>
+            </View>
+          )}
+        />
+      </View>
+    </SafeAreaView>
   );
 }
 
+
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
+  },
   container: {
     flex: 1,
     backgroundColor: '#F5F5F5',
@@ -195,7 +221,7 @@ const styles = StyleSheet.create({
   header: {
     backgroundColor: '#FFFFFF',
     paddingHorizontal: ResponsiveUtils.spacing(2),
-    paddingTop: ResponsiveUtils.isIPhoneX() ? 44 : 20,
+    paddingTop: ResponsiveUtils.spacing(1.5),
     paddingBottom: ResponsiveUtils.spacing(1.5),
     flexDirection: 'row',
     alignItems: 'center',

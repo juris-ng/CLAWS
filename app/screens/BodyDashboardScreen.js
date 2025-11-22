@@ -1,768 +1,497 @@
-import React, { useEffect, useState } from 'react';
+import { Ionicons } from '@expo/vector-icons';
+import { useEffect, useState } from 'react';
 import {
+  ActivityIndicator,
+  Dimensions,
+  Platform,
   RefreshControl,
+  SafeAreaView,
   ScrollView,
+  StatusBar,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
-  View
+  View,
 } from 'react-native';
+import { LineChart } from 'react-native-chart-kit';
 import { supabase } from '../../supabase';
-import { TrustMetricsService } from '../../utils/trustMetricsService';
+import { BodyAnalyticsService } from '../../utils/bodyAnalyticsService';
+import { BodyService } from '../../utils/bodyService';
 
-export default function BodyDashboardScreen({ user, profile }) {
+const { width } = Dimensions.get('window');
+
+const BodyDashboardScreen = ({ navigation }) => {
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [bodyData, setBodyData] = useState(null);
-  const [activeTab, setActiveTab] = useState('Overview');
-  const [loading, setLoading] = useState(false);
-  const [editingMission, setEditingMission] = useState(false);
-  const [missionText, setMissionText] = useState('');
-  const [trustMetrics, setTrustMetrics] = useState(null);
-  const [adminRoles, setAdminRoles] = useState([]);
-  const [ideas, setIdeas] = useState([]);
-
-  const tabs = ['Overview', 'Petitions', 'Ideas', 'Members'];
+  const [stats, setStats] = useState({
+    petitionsCount: 0,
+    suggestionsCount: 0,
+    informationRequestsCount: 0,
+    contentCount: 0,
+    teamSize: 1,
+    membersCount: 0,
+    pendingPetitions: 0,
+    memberActions: 0,
+  });
+  const [trustMetrics, setTrustMetrics] = useState({
+    trustScore: 0,
+    overallRating: 0,
+    totalRatings: 0,
+  });
+  const [rankings, setRankings] = useState(null);
+  const [engagementData, setEngagementData] = useState(null);
 
   useEffect(() => {
-    loadBodyData();
+    loadDashboardData();
   }, []);
 
-  const loadBodyData = async () => {
-    setLoading(true);
-    
-    const { data } = await supabase
-      .from('bodies')
-      .select('*')
-      .eq('user_id', user.id)
-      .single();
-    
-    if (data) {
-      setBodyData(data);
-      setMissionText(data.description || '');
-    }
+  const loadDashboardData = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
 
-    // Load trust metrics
-    const metrics = await TrustMetricsService.getTrustMetrics(user.id);
-    setTrustMetrics(metrics);
+      const [bodyResult, statsResult, trustResult, rankingsResult, engagementResult] = 
+        await Promise.all([
+          BodyService.getBodyById(user.id),
+          BodyAnalyticsService.getDashboardStats(user.id),
+          BodyAnalyticsService.getTrustMetrics(user.id),
+          BodyAnalyticsService.getRankings(user.id),
+          fetchEngagementData(user.id),
+        ]);
 
-    // Load admin roles
-    const { data: roles } = await supabase
-      .from('body_admin_roles')
-      .select(`
-        *,
-        members:member_id (full_name, email)
-      `)
-      .eq('body_id', user.id)
-      .eq('is_active', true);
+      if (bodyResult.success) setBodyData(bodyResult.body);
+      if (statsResult.success) {
+        setStats({
+          ...statsResult.stats,
+          suggestionsCount: statsResult.stats.suggestionsCount || 0,
+          informationRequestsCount: statsResult.stats.informationRequestsCount || 0,
+          contentCount: statsResult.stats.postsCount || 0,
+          membersCount: statsResult.stats.followersCount || 0,
+          memberActions: (statsResult.stats.petitionsCount || 0) + 
+                        (statsResult.stats.suggestionsCount || 0) + 
+                        (statsResult.stats.informationRequestsCount || 0),
+        });
+      }
+      if (trustResult.success) setTrustMetrics(trustResult.metrics);
+      if (rankingsResult.success) setRankings(rankingsResult.rankings);
+      if (engagementResult) setEngagementData(engagementResult);
 
-    if (roles) {
-      setAdminRoles(roles);
-    }
-
-    // Load ideas
-    await loadIdeas();
-
-    setLoading(false);
-  };
-
-  const loadIdeas = async () => {
-    const { data } = await supabase
-      .from('ideas')
-      .select(`
-        *,
-        members:member_id (full_name)
-      `)
-      .eq('body_id', user.id)
-      .order('created_at', { ascending: false })
-      .limit(10);
-
-    if (data) {
-      setIdeas(data);
+    } catch (error) {
+      console.error('Error loading dashboard:', error);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
     }
   };
 
-  const handleSaveMission = async () => {
-    const { error } = await supabase
-      .from('bodies')
-      .update({ description: missionText })
-      .eq('user_id', user.id);
+  const fetchEngagementData = async (bodyId) => {
+    try {
+      const endDate = new Date();
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() - 6);
 
-    if (!error) {
-      setBodyData({ ...bodyData, description: missionText });
-      setEditingMission(false);
-      alert('Mission updated successfully!');
+      // ✅ FIXED: Changed body_id to target_body_id
+      const { data, error } = await supabase
+        .from('petitions')
+        .select('created_at')
+        .eq('target_body_id', bodyId)
+        .gte('created_at', startDate.toISOString())
+        .lte('created_at', endDate.toISOString());
+
+      if (error) throw error;
+
+      const dayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+      const engagementCounts = Array(7).fill(0);
+      const today = endDate.getDay();
+
+      data?.forEach(item => {
+        const itemDate = new Date(item.created_at);
+        const dayDiff = Math.floor((endDate - itemDate) / (1000 * 60 * 60 * 24));
+        if (dayDiff < 7) {
+          const index = (today - dayDiff + 7) % 7;
+          engagementCounts[index]++;
+        }
+      });
+
+      const mondayIndex = today === 0 ? 6 : today - 1;
+      const reorderedData = [];
+      const reorderedLabels = [];
+      
+      for (let i = 0; i < 7; i++) {
+        const index = (mondayIndex + i) % 7;
+        reorderedData.push(engagementCounts[index] || 0);
+        reorderedLabels.push(dayLabels[index]);
+      }
+
+      return {
+        labels: reorderedLabels,
+        datasets: [
+          {
+            data: reorderedData.length > 0 ? reorderedData : [0, 0, 0, 0, 0, 0, 0],
+            color: (opacity = 1) => `rgba(26, 115, 232, ${opacity})`,
+            strokeWidth: 2,
+          },
+        ],
+      };
+    } catch (error) {
+      console.error('Error fetching engagement data:', error);
+      return {
+        labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+        datasets: [{ data: [0, 0, 0, 0, 0, 0, 0], color: (opacity = 1) => `rgba(26, 115, 232, ${opacity})`, strokeWidth: 2 }],
+      };
     }
   };
 
-  const handleRecalculateTrust = async () => {
-    setLoading(true);
-    const metrics = await TrustMetricsService.calculateTrustMetrics(user.id);
-    setTrustMetrics(metrics);
-    setLoading(false);
-    alert('Trust metrics recalculated!');
+  const onRefresh = () => {
+    setRefreshing(true);
+    loadDashboardData();
   };
 
-  const handleReviewIdea = async (ideaId, newStatus) => {
-    const { error } = await supabase
-      .from('ideas')
-      .update({ 
-        status: newStatus,
-        reviewed_by: user.id,
-        reviewed_at: new Date().toISOString()
-      })
-      .eq('id', ideaId);
-
-    if (!error) {
-      alert(`Idea ${newStatus}!`);
-      await loadIdeas();
-    }
+  const chartConfig = {
+    backgroundGradientFrom: '#FFFFFF',
+    backgroundGradientTo: '#FFFFFF',
+    decimalPlaces: 0,
+    color: (opacity = 1) => `rgba(26, 115, 232, ${opacity})`,
+    labelColor: (opacity = 1) => `rgba(95, 99, 104, ${opacity})`,
+    style: {
+      borderRadius: 10,
+    },
+    propsForDots: {
+      r: '3',
+      strokeWidth: '2',
+      stroke: '#1A73E8',
+    },
+    propsForBackgroundLines: {
+      strokeDasharray: '',
+      stroke: '#E8EAED',
+      strokeWidth: 1,
+    },
   };
 
-  const getIdeaStatusColor = (status) => {
-    switch (status) {
-      case 'submitted': return '#FF9500';
-      case 'under_review': return '#0066FF';
-      case 'accepted': return '#34C759';
-      case 'implemented': return '#AF52DE';
-      case 'rejected': return '#FF3B30';
-      default: return '#8E8E93';
-    }
-  };
-
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-  };
-
-  const trustRating = trustMetrics 
-    ? TrustMetricsService.getTrustRating(trustMetrics.trust_score) 
-    : null;
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#1A73E8" />
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
-    <View style={styles.container}>
-      {/* Header */}
+    <SafeAreaView style={styles.safeArea}>
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+      
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Body Dashboard</Text>
-        <View style={styles.headerRight}>
-          <TouchableOpacity style={styles.notificationButton}>
-            <Text style={styles.notificationIcon}>🔔</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={handleLogout}>
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>
-                {bodyData?.name?.charAt(0).toUpperCase() || 'B'}
-              </Text>
-            </View>
-          </TouchableOpacity>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.headerTitle}>Dashboard</Text>
+          <Text style={styles.headerSubtitle} numberOfLines={1}>
+            {bodyData?.name || 'Organization'}
+          </Text>
         </View>
-      </View>
-
-      {/* Body Name */}
-      <View style={styles.bodyHeader}>
-        <Text style={styles.bodyName}>{bodyData?.name}</Text>
-        <Text style={styles.bodySubtitle}>{bodyData?.member_count || 0} Members</Text>
-      </View>
-
-      {/* Tabs */}
-      <View style={styles.tabsContainer}>
-        {tabs.map((tab) => (
-          <TouchableOpacity
-            key={tab}
-            style={[
-              styles.tab,
-              activeTab === tab && styles.tabActive
-            ]}
-            onPress={() => setActiveTab(tab)}
-          >
-            <Text style={[
-              styles.tabText,
-              activeTab === tab && styles.tabTextActive
-            ]}>
-              {tab}
-            </Text>
-          </TouchableOpacity>
-        ))}
+        <TouchableOpacity 
+          style={styles.settingsButton}
+          onPress={() => navigation.navigate('BodySettingsScreen')}
+        >
+          <Ionicons name="settings-outline" size={22} color="#5F6368" />
+        </TouchableOpacity>
       </View>
 
       <ScrollView
-        style={styles.content}
-        refreshControl={
-          <RefreshControl refreshing={loading} onRefresh={loadBodyData} />
-        }
+        style={styles.container}
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        showsVerticalScrollIndicator={false}
       >
-        {activeTab === 'Overview' && (
-          <>
-            {/* Trust Metrics */}
-            {trustMetrics && trustRating && (
-              <View style={styles.trustMetricsCard}>
-                <View style={styles.trustHeader}>
-                  <Text style={styles.trustTitle}>Trust Score</Text>
-                  <TouchableOpacity onPress={handleRecalculateTrust}>
-                    <Text style={styles.recalculateButton}>🔄 Refresh</Text>
-                  </TouchableOpacity>
-                </View>
-                
-                <View style={styles.trustScoreRow}>
-                  <View style={styles.trustScoreCircle}>
-                    <Text style={[styles.trustScoreNumber, { color: trustRating.color }]}>
-                      {Math.round(trustMetrics.trust_score)}
-                    </Text>
-                    <Text style={styles.trustScoreLabel}>/ 100</Text>
-                  </View>
-                  <View style={styles.trustRating}>
-                    <Text style={styles.trustRatingIcon}>{trustRating.icon}</Text>
-                    <Text style={[styles.trustRatingText, { color: trustRating.color }]}>
-                      {trustRating.label}
-                    </Text>
-                  </View>
-                </View>
-
-                <View style={styles.trustMetrics}>
-                  <View style={styles.metricRow}>
-                    <Text style={styles.metricLabel}>Response Rate</Text>
-                    <Text style={styles.metricValue}>{Math.round(trustMetrics.response_rate)}%</Text>
-                  </View>
-                  <View style={styles.metricRow}>
-                    <Text style={styles.metricLabel}>Resolution Rate</Text>
-                    <Text style={styles.metricValue}>{Math.round(trustMetrics.resolution_rate)}%</Text>
-                  </View>
-                  <View style={styles.metricRow}>
-                    <Text style={styles.metricLabel}>Member Satisfaction</Text>
-                    <Text style={styles.metricValue}>{Math.round(trustMetrics.member_satisfaction)}%</Text>
-                  </View>
-                  <View style={styles.metricRow}>
-                    <Text style={styles.metricLabel}>Transparency</Text>
-                    <Text style={styles.metricValue}>{Math.round(trustMetrics.transparency_score)}%</Text>
-                  </View>
-                </View>
-              </View>
-            )}
-
-            {/* Mission Statement */}
-            <View style={styles.section}>
-              <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>Mission Statement</Text>
-                <TouchableOpacity onPress={() => setEditingMission(!editingMission)}>
-                  <Text style={styles.editButton}>{editingMission ? 'Cancel' : 'Edit'}</Text>
-                </TouchableOpacity>
-              </View>
-
-              {editingMission ? (
-                <>
-                  <TextInput
-                    style={styles.missionInput}
-                    value={missionText}
-                    onChangeText={setMissionText}
-                    multiline
-                    placeholder="Enter your organization's mission..."
-                  />
-                  <TouchableOpacity style={styles.saveButton} onPress={handleSaveMission}>
-                    <Text style={styles.saveButtonText}>Save Mission</Text>
-                  </TouchableOpacity>
-                </>
-              ) : (
-                <Text style={styles.missionText}>
-                  {bodyData?.description || 'No mission statement set.'}
-                </Text>
-              )}
+        <View style={styles.metricsGrid}>
+          <TouchableOpacity 
+            style={styles.metricCard}
+            onPress={() => navigation.navigate('BodyPetitionsScreen')}
+          >
+            <View style={styles.metricIcon}>
+              <Ionicons name="document-text-outline" size={18} color="#757575" />
             </View>
+            <Text style={styles.metricValue}>{stats.petitionsCount}</Text>
+            <Text style={styles.metricLabel}>Petitions</Text>
+          </TouchableOpacity>
 
-            {/* Admin Roles */}
-            <View style={styles.section}>
-              <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>Administrative Team</Text>
-                <TouchableOpacity>
-                  <Text style={styles.addButton}>+ Add</Text>
-                </TouchableOpacity>
-              </View>
-
-              {adminRoles.length === 0 ? (
-                <Text style={styles.emptyText}>No admin roles assigned yet</Text>
-              ) : (
-                adminRoles.map((role) => (
-                  <View key={role.id} style={styles.adminCard}>
-                    <View style={styles.adminAvatar}>
-                      <Text style={styles.adminAvatarText}>
-                        {role.members?.full_name?.charAt(0).toUpperCase()}
-                      </Text>
-                    </View>
-                    <View style={styles.adminInfo}>
-                      <Text style={styles.adminName}>{role.members?.full_name}</Text>
-                      <Text style={styles.adminRole}>{role.role_title}</Text>
-                    </View>
-                  </View>
-                ))
-              )}
+          <TouchableOpacity style={styles.metricCard}>
+            <View style={styles.metricIcon}>
+              <Ionicons name="bulb-outline" size={18} color="#757575" />
             </View>
+            <Text style={styles.metricValue}>{stats.suggestionsCount}</Text>
+            <Text style={styles.metricLabel}>Suggestions</Text>
+          </TouchableOpacity>
 
-            {/* Analytics Summary */}
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Performance Analytics</Text>
-              
-              <View style={styles.statsGrid}>
-                <View style={styles.statCard}>
-                  <Text style={styles.statNumber}>{bodyData?.points || 0}</Text>
-                  <Text style={styles.statLabel}>Total Points</Text>
-                </View>
-                <View style={styles.statCard}>
-                  <Text style={styles.statNumber}>{bodyData?.member_count || 0}</Text>
-                  <Text style={styles.statLabel}>Members</Text>
-                </View>
-              </View>
-
-              <View style={styles.statsGrid}>
-                <View style={styles.statCard}>
-                  <Text style={styles.statNumber}>
-                    {trustMetrics?.total_petitions_handled || 0}
-                  </Text>
-                  <Text style={styles.statLabel}>Petitions</Text>
-                </View>
-                <View style={styles.statCard}>
-                  <Text style={styles.statNumber}>
-                    {trustMetrics?.total_petitions_resolved || 0}
-                  </Text>
-                  <Text style={styles.statLabel}>Resolved</Text>
-                </View>
-              </View>
+          <TouchableOpacity style={styles.metricCard}>
+            <View style={styles.metricIcon}>
+              <Ionicons name="information-circle-outline" size={18} color="#757575" />
             </View>
-          </>
-        )}
+            <Text style={styles.metricValue}>{stats.informationRequestsCount}</Text>
+            <Text style={styles.metricLabel}>Info Requests</Text>
+          </TouchableOpacity>
 
-        {activeTab === 'Petitions' && (
-          <View style={styles.section}>
-            <Text style={styles.emptyText}>No petitions yet</Text>
+          <TouchableOpacity 
+            style={styles.metricCard}
+            onPress={() => navigation.navigate('BodyPostsScreen')}
+          >
+            <View style={styles.metricIcon}>
+              <Ionicons name="create-outline" size={18} color="#757575" />
+            </View>
+            <Text style={styles.metricValue}>{stats.contentCount}</Text>
+            <Text style={styles.metricLabel}>Content</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.transparencyCard}>
+          <View style={styles.cardHeader}>
+            <Ionicons name="analytics-outline" size={16} color="#757575" />
+            <Text style={styles.cardTitle}>T-Metrics</Text>
+          </View>
+          
+          <View style={styles.scoreRow}>
+            <View style={styles.scoreBox}>
+              {/* ✅ FIXED: Added null safety for toFixed */}
+              <Text style={styles.scoreNumber}>
+                {(trustMetrics?.trustScore || 0).toFixed(1)}
+              </Text>
+              <Text style={styles.scoreSubtext}>Trust Score</Text>
+            </View>
+            <View style={styles.scoreBox}>
+              {/* ✅ FIXED: Added null safety for toFixed */}
+              <Text style={styles.scoreNumber}>
+                {(trustMetrics?.overallRating || 0).toFixed(1)} ⭐
+              </Text>
+              <Text style={styles.scoreSubtext}>Rating ({trustMetrics?.totalRatings || 0})</Text>
+            </View>
+            <View style={styles.scoreBox}>
+              <Text style={styles.scoreNumber}>{stats.membersCount}</Text>
+              <Text style={styles.scoreSubtext}>Members</Text>
+            </View>
+          </View>
+        </View>
+
+        {engagementData && (
+          <View style={styles.engagementCard}>
+            <View style={styles.cardHeader}>
+              <Ionicons name="trending-up-outline" size={16} color="#757575" />
+              <Text style={styles.cardTitle}>Engagement Trend</Text>
+            </View>
+            <LineChart
+              data={engagementData}
+              width={width - 48}
+              height={120}
+              chartConfig={chartConfig}
+              bezier
+              style={styles.chart}
+              withInnerLines={true}
+              withOuterLines={false}
+              withVerticalLabels={true}
+              withHorizontalLabels={true}
+              withDots={true}
+              withShadow={false}
+              fromZero={true}
+            />
+            <Text style={styles.chartCaption}>Member interactions over the past week</Text>
           </View>
         )}
 
-        {activeTab === 'Ideas' && (
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Recent Ideas</Text>
-              <Text style={styles.sectionSubtitle}>{ideas.length} total</Text>
-            </View>
-
-            {ideas.length === 0 ? (
-              <Text style={styles.emptyText}>No ideas submitted yet</Text>
-            ) : (
-              ideas.map((idea) => (
-                <View key={idea.id} style={styles.ideaCard}>
-                  <View style={styles.ideaHeader}>
-                    <View style={[
-                      styles.ideaStatusBadge, 
-                      { backgroundColor: getIdeaStatusColor(idea.status) }
-                    ]}>
-                      <Text style={styles.ideaStatusText}>
-                        {idea.status.replace('_', ' ')}
-                      </Text>
-                    </View>
-                  </View>
-                  
-                  <Text style={styles.ideaTitle}>{idea.title}</Text>
-                  <Text style={styles.ideaDescription} numberOfLines={2}>
-                    {idea.description}
-                  </Text>
-                  
-                  <View style={styles.ideaFooter}>
-                    <Text style={styles.ideaAuthor}>
-                      By {idea.members?.full_name}
-                    </Text>
-                    {idea.status === 'submitted' && (
-                      <View style={styles.ideaActions}>
-                        <TouchableOpacity 
-                          style={styles.ideaActionButton}
-                          onPress={() => handleReviewIdea(idea.id, 'accepted')}
-                        >
-                          <Text style={styles.ideaActionText}>✅ Accept</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity 
-                          style={[styles.ideaActionButton, styles.ideaRejectButton]}
-                          onPress={() => handleReviewIdea(idea.id, 'rejected')}
-                        >
-                          <Text style={styles.ideaRejectText}>❌ Reject</Text>
-                        </TouchableOpacity>
-                      </View>
-                    )}
-                    {idea.status === 'accepted' && (
-                      <TouchableOpacity 
-                        style={styles.ideaImplementButton}
-                        onPress={() => handleReviewIdea(idea.id, 'implemented')}
-                      >
-                        <Text style={styles.ideaImplementText}>Mark as Implemented</Text>
-                      </TouchableOpacity>
-                    )}
-                  </View>
-                </View>
-              ))
-            )}
-          </View>
-        )}
-
-        {activeTab === 'Members' && (
-          <View style={styles.section}>
-            <Text style={styles.emptyText}>Member list will appear here</Text>
-          </View>
-        )}
+        <View style={styles.quickActionsCard}>
+          <Text style={styles.cardTitle}>Quick Actions</Text>
+          <TouchableOpacity 
+            style={styles.quickActionButton}
+            onPress={() => navigation.navigate('Team')}
+          >
+            <Ionicons name="people-outline" size={16} color="#5F6368" />
+            <Text style={styles.quickActionText}>Manage Team ({stats.teamSize})</Text>
+            <Ionicons name="chevron-forward" size={16} color="#5F6368" />
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={[styles.quickActionButton, styles.lastAction]}
+            onPress={() => navigation.navigate('BodyAnalytics')}
+          >
+            <Ionicons name="analytics-outline" size={16} color="#5F6368" />
+            <Text style={styles.quickActionText}>View Analytics</Text>
+            <Ionicons name="chevron-forward" size={16} color="#5F6368" />
+          </TouchableOpacity>
+        </View>
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
-}
+};
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#F8F9FA',
+    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
+  },
   container: {
     flex: 1,
-    backgroundColor: '#F2F2F7',
+  },
+  scrollContent: {
+    padding: 10,
+    paddingBottom: 0,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   header: {
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 20,
-    paddingTop: 50,
-    paddingBottom: 15,
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E5EA',
+    borderBottomColor: '#E8EAED',
   },
   headerTitle: {
-    fontSize: 28,
-    fontWeight: 'bold',
+    fontSize: 19,
+    fontWeight: '600',
+    color: '#202124',
   },
-  headerRight: {
+  headerSubtitle: {
+    fontSize: 11,
+    color: '#5F6368',
+    marginTop: 2,
+  },
+  settingsButton: {
+    padding: 6,
+  },
+  metricsGrid: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  metricCard: {
+    width: (width - 32) / 2,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 10,
+    padding: 10,
     alignItems: 'center',
-    gap: 15,
+    marginBottom: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2,
   },
-  notificationButton: {
-    padding: 5,
-  },
-  notificationIcon: {
-    fontSize: 24,
-  },
-  avatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#34C759',
+  metricIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#F5F5F5',
     justifyContent: 'center',
     alignItems: 'center',
+    marginBottom: 6,
   },
-  avatarText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  bodyHeader: {
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 20,
-    paddingVertical: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E5EA',
-  },
-  bodyName: {
-    fontSize: 24,
-    fontWeight: 'bold',
+  metricValue: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#1A73E8',
     marginBottom: 4,
   },
-  bodySubtitle: {
-    fontSize: 14,
-    color: '#8E8E93',
+  metricLabel: {
+    fontSize: 10,
+    color: '#5F6368',
+    textAlign: 'center',
+    fontWeight: '500',
   },
-  tabsContainer: {
-    flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
-    padding: 15,
-    gap: 10,
-  },
-  tab: {
-    flex: 1,
-    paddingVertical: 10,
-    borderRadius: 8,
-    backgroundColor: '#F2F2F7',
-    alignItems: 'center',
-  },
-  tabActive: {
-    backgroundColor: '#0066FF',
-  },
-  tabText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#3C3C43',
-  },
-  tabTextActive: {
-    color: '#FFFFFF',
-  },
-  content: {
-    flex: 1,
-  },
-  trustMetricsCard: {
-    backgroundColor: '#FFFFFF',
-    margin: 15,
-    padding: 20,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E5E5EA',
-  },
-  trustHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  trustTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-  },
-  recalculateButton: {
-    fontSize: 14,
-    color: '#0066FF',
-    fontWeight: '600',
-  },
-  trustScoreRow: {
+  cardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 20,
-  },
-  trustScoreCircle: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: '#F2F2F7',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 20,
-  },
-  trustScoreNumber: {
-    fontSize: 36,
-    fontWeight: 'bold',
-  },
-  trustScoreLabel: {
-    fontSize: 14,
-    color: '#8E8E93',
-  },
-  trustRating: {
-    flex: 1,
-  },
-  trustRatingIcon: {
-    fontSize: 48,
     marginBottom: 8,
   },
-  trustRatingText: {
-    fontSize: 20,
-    fontWeight: 'bold',
+  cardTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#202124',
+    marginLeft: 6,
   },
-  trustMetrics: {
-    gap: 12,
+  transparencyCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2,
   },
-  metricRow: {
+  scoreRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+  },
+  scoreBox: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 6,
+  },
+  scoreNumber: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1A73E8',
+    marginBottom: 2,
+  },
+  scoreSubtext: {
+    fontSize: 9,
+    color: '#5F6368',
+    textAlign: 'center',
+  },
+  engagementCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  chart: {
+    marginVertical: 4,
+    borderRadius: 10,
+  },
+  chartCaption: {
+    fontSize: 10,
+    color: '#5F6368',
+    textAlign: 'center',
+    marginTop: 2,
+  },
+  quickActionsCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 0,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  quickActionButton: {
+    flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 8,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E5EA',
+    borderBottomColor: '#F8F9FA',
   },
-  metricLabel: {
-    fontSize: 15,
-    color: '#3C3C43',
+  lastAction: {
+    borderBottomWidth: 0,
   },
-  metricValue: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#0066FF',
-  },
-  section: {
-    backgroundColor: '#FFFFFF',
-    padding: 20,
-    marginBottom: 15,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 15,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  sectionSubtitle: {
-    fontSize: 14,
-    color: '#8E8E93',
-  },
-  editButton: {
-    fontSize: 14,
-    color: '#0066FF',
-    fontWeight: '600',
-  },
-  addButton: {
-    fontSize: 14,
-    color: '#34C759',
-    fontWeight: '600',
-  },
-  missionInput: {
-    backgroundColor: '#F2F2F7',
-    borderRadius: 10,
-    padding: 15,
-    fontSize: 15,
-    minHeight: 100,
-    textAlignVertical: 'top',
-    marginBottom: 12,
-  },
-  saveButton: {
-    backgroundColor: '#0066FF',
-    paddingVertical: 12,
-    borderRadius: 10,
-    alignItems: 'center',
-  },
-  saveButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  missionText: {
-    fontSize: 15,
-    lineHeight: 22,
-    color: '#3C3C43',
-  },
-  adminCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 12,
-    backgroundColor: '#F2F2F7',
-    borderRadius: 10,
-    marginBottom: 10,
-  },
-  adminAvatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#0066FF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  adminAvatarText: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  adminInfo: {
+  quickActionText: {
     flex: 1,
-  },
-  adminName: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 2,
-  },
-  adminRole: {
-    fontSize: 14,
-    color: '#8E8E93',
-  },
-  statsGrid: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 12,
-  },
-  statCard: {
-    flex: 1,
-    backgroundColor: '#F2F2F7',
-    padding: 20,
-    borderRadius: 10,
-    alignItems: 'center',
-  },
-  statNumber: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#0066FF',
-    marginBottom: 4,
-  },
-  statLabel: {
-    fontSize: 13,
-    color: '#8E8E93',
-  },
-  ideaCard: {
-    backgroundColor: '#F2F2F7',
-    padding: 14,
-    borderRadius: 10,
-    marginBottom: 10,
-  },
-  ideaHeader: {
-    marginBottom: 10,
-  },
-  ideaStatusBadge: {
-    alignSelf: 'flex-start',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 10,
-  },
-  ideaStatusText: {
-    fontSize: 11,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-    textTransform: 'uppercase',
-  },
-  ideaTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginBottom: 6,
-  },
-  ideaDescription: {
-    fontSize: 14,
-    color: '#3C3C43',
-    lineHeight: 20,
-    marginBottom: 10,
-  },
-  ideaFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingTop: 10,
-    borderTopWidth: 1,
-    borderTopColor: '#E5E5EA',
-  },
-  ideaAuthor: {
-    fontSize: 13,
-    color: '#8E8E93',
-  },
-  ideaActions: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  ideaActionButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#34C759',
-  },
-  ideaActionText: {
     fontSize: 12,
-    fontWeight: '600',
-    color: '#34C759',
-  },
-  ideaRejectButton: {
-    borderColor: '#FF3B30',
-  },
-  ideaRejectText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#FF3B30',
-  },
-  ideaImplementButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
-    backgroundColor: '#AF52DE',
-  },
-  ideaImplementText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#FFFFFF',
-  },
-  emptyText: {
-    fontSize: 15,
-    color: '#8E8E93',
-    textAlign: 'center',
-    paddingVertical: 40,
+    color: '#5F6368',
+    marginLeft: 8,
   },
 });
+
+export default BodyDashboardScreen;

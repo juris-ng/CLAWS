@@ -1,602 +1,324 @@
-import React, { useEffect, useState } from 'react';
-import {
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View
-} from 'react-native';
-import { supabase } from '../../supabase';
+import { Ionicons } from '@expo/vector-icons';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { createStackNavigator } from '@react-navigation/stack';
+import { StyleSheet, Text, View } from 'react-native';
 
-export default function LawyerDashboardScreen({ user, profile }) {
-  const [lawyerData, setLawyerData] = useState(null);
-  const [activeTab, setActiveTab] = useState('My Cases');
-  const [loading, setLoading] = useState(false);
-  const [partnershipInvites, setPartnershipInvites] = useState([]);
 
-  const tabs = ['My Cases', 'Secure Messages'];
+// Main Lawyer Screens
+import LawyerAnalyticsDashboardScreen from './LawyerAnalyticsDashboardScreen';
+import LawyerProfileScreen from './LawyerProfileScreen';
+import LawyerSelectionScreen from './LawyerSelectionScreen';
+import LawyersListScreen from './LawyersListScreen';
 
-  useEffect(() => {
-    loadLawyerData();
-    loadInvitations();
-  }, []);
 
-  const loadLawyerData = async () => {
-    setLoading(true);
-    
-    const { data } = await supabase
-      .from('lawyers')
-      .select('*')
-      .eq('user_id', user.id)
-      .single();
-    
-    if (data) {
-      setLawyerData(data);
-    }
+// Cases
+import CaseDetailScreen from './CaseDetailScreen';
+import CasesScreen from './CasesScreen';
+import CreateCaseScreen from './CreateCaseScreen';
+import MyCasesScreen from './MyCasesScreen';
 
-    setLoading(false);
-  };
 
-  const loadInvitations = async () => {
-    const { data } = await supabase
-      .from('lawyer_invitations')
-      .select(`
-        *,
-        petitions:petition_id (title, description),
-        members:invited_by (full_name)
-      `)
-      .eq('lawyer_id', user.id)
-      .eq('status', 'pending')
-      .order('created_at', { ascending: false });
-    
-    if (data) {
-      setPartnershipInvites(data);
-    }
-  };
+// Consultations
+import BookConsultationScreen from './BookConsultationScreen';
+import MyConsultationsScreen from './MyConsultationsScreen';
 
-  const handleAcceptInvitation = async (invitation) => {
-    setLoading(true);
 
-    // Update invitation status
-    const { error: updateError } = await supabase
-      .from('lawyer_invitations')
-      .update({ 
-        status: 'accepted',
-        responded_at: new Date().toISOString()
-      })
-      .eq('id', invitation.id);
+// Messages & Communication
+import ConversationDetailScreen from './ConversationDetailScreen';
+import ConversationsListScreen from './ConversationsListScreen';
+import InboxScreen from './InboxScreen';
 
-    if (updateError) {
-      alert('Error accepting invitation: ' + updateError.message);
-      setLoading(false);
-      return;
-    }
 
-    // Add to petition_lawyers
-    const { error: insertError } = await supabase
-      .from('petition_lawyers')
-      .insert([{
-        petition_id: invitation.petition_id,
-        lawyer_id: user.id,
-      }]);
+// Notifications
+import NotificationsScreen from './NotificationsScreen';
 
-    setLoading(false);
 
-    if (insertError) {
-      alert('Error joining petition: ' + insertError.message);
-    } else {
-      alert('Invitation accepted! You are now supporting this petition.');
-      loadInvitations();
-    }
-  };
+// Settings & Profile
+import EditProfileScreen from './EditProfileScreen';
+import SettingsScreen from './SettingsScreen';
 
-  const handleDeclineInvitation = async (invitation) => {
-    setLoading(true);
 
-    const { error } = await supabase
-      .from('lawyer_invitations')
-      .update({ 
-        status: 'declined',
-        responded_at: new Date().toISOString()
-      })
-      .eq('id', invitation.id);
+// Analytics & Reports
+import ImpactTrackingScreen from './ImpactTrackingScreen';
+import PerformanceReportsScreen from './PerformanceReportsScreen';
 
-    setLoading(false);
 
-    if (error) {
-      alert('Error declining invitation: ' + error.message);
-    } else {
-      alert('Invitation declined');
-      loadInvitations();
-    }
-  };
+// Feedback & Surveys
+import SubmitFeedbackScreen from './SubmitFeedbackScreen';
+import TakeSurveyScreen from './TakeSurveyScreen';
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-  };
 
-  const activeCases = [
-    {
-      id: 1,
-      title: 'Community Water Rights Dispute',
-      status: 'Active',
-      partner: 'Citizens for Clean Water',
-      lastUpdate: 'June 20, 2024',
-      description: 'Issue Notice',
-      statusColor: '#0066FF',
-    },
-    {
-      id: 2,
-      title: 'Public Land Use Zoning Appeal',
-      status: 'Review',
-      partner: 'Greenbelt Preservation Society',
-      lastUpdate: 'June 18, 2024',
-      description: 'Escalate',
-      statusColor: '#FF9500',
-    },
-    {
-      id: 3,
-      title: 'Local Governance Transparency Audit',
-      status: 'Active',
-      partner: 'Accountability Advocates',
-      lastUpdate: 'June 14, 2024',
-      description: 'Issue Notice',
-      statusColor: '#0066FF',
-    },
-  ];
+// QnA Sessions
+import QnASessionDetailScreen from './QnASessionDetailScreen';
+import QnASessionsScreen from './QnASessionsScreen';
 
+
+const Tab = createBottomTabNavigator();
+const Stack = createStackNavigator();
+
+
+// ✅ PLACEHOLDER SCREENS FOR MISSING COMPONENTS
+const PlaceholderScreen = ({ route }) => (
+  <View style={styles.placeholder}>
+    <Text style={styles.placeholderText}>
+      {route.name} Screen
+    </Text>
+    <Text style={styles.placeholderSubtext}>
+      Coming Soon
+    </Text>
+  </View>
+);
+
+
+// HOME STACK (Dashboard)
+function HomeStackNavigator() {
   return (
-    <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Lawyer Dashboard</Text>
-        <View style={styles.headerRight}>
-          <TouchableOpacity style={styles.notificationButton}>
-            <Text style={styles.notificationIcon}>🔔</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={handleLogout}>
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>
-                {lawyerData?.full_name?.charAt(0).toUpperCase() || 'L'}
-              </Text>
-            </View>
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      <ScrollView
-        style={styles.content}
-        refreshControl={
-          <RefreshControl refreshing={loading} onRefresh={() => {
-            loadLawyerData();
-            loadInvitations();
-          }} />
-        }
-      >
-        {/* Tabs */}
-        <View style={styles.tabsContainer}>
-          {tabs.map((tab) => (
-            <TouchableOpacity
-              key={tab}
-              style={[
-                styles.tab,
-                activeTab === tab && styles.tabActive
-              ]}
-              onPress={() => setActiveTab(tab)}
-            >
-              <Text style={[
-                styles.tabText,
-                activeTab === tab && styles.tabTextActive
-              ]}>
-                {tab}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        {activeTab === 'My Cases' && (
-          <>
-            {/* Partnership Invites */}
-            <View style={styles.section}>
-              <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>Partnership Invites</Text>
-                {partnershipInvites.length > 0 && (
-                  <View style={styles.badge}>
-                    <Text style={styles.badgeText}>{partnershipInvites.length}</Text>
-                  </View>
-                )}
-              </View>
-
-              {partnershipInvites.length === 0 ? (
-                <View style={styles.emptyInvites}>
-                  <Text style={styles.emptyIcon}>📭</Text>
-                  <Text style={styles.emptyText}>No pending invitations</Text>
-                </View>
-              ) : (
-                partnershipInvites.map((invite) => (
-                  <View key={invite.id} style={styles.inviteCard}>
-                    <View style={styles.inviteIcon}>
-                      <Text style={styles.inviteIconText}>⚖️</Text>
-                    </View>
-                    <View style={styles.inviteContent}>
-                      <Text style={styles.inviteTitle}>
-                        {invite.petitions?.title || 'Petition'}
-                      </Text>
-                      <Text style={styles.inviteDate}>
-                        Invited by {invite.members?.full_name || 'A member'} on {new Date(invite.created_at).toLocaleDateString()}
-                      </Text>
-                      <View style={styles.inviteStatusRow}>
-                        <View style={styles.statusBadge}>
-                          <Text style={styles.statusText}>Pending</Text>
-                        </View>
-                      </View>
-                      {invite.message && (
-                        <Text style={styles.inviteDescription}>{invite.message}</Text>
-                      )}
-                      
-                      <View style={styles.inviteActions}>
-                        <TouchableOpacity 
-                          style={styles.declineButton}
-                          onPress={() => handleDeclineInvitation(invite)}
-                          disabled={loading}
-                        >
-                          <Text style={styles.declineButtonText}>
-                            {loading ? 'Processing...' : 'Decline'}
-                          </Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity 
-                          style={styles.acceptButton}
-                          onPress={() => handleAcceptInvitation(invite)}
-                          disabled={loading}
-                        >
-                          <Text style={styles.acceptButtonText}>
-                            {loading ? 'Processing...' : 'Accept'}
-                          </Text>
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                  </View>
-                ))
-              )}
-            </View>
-
-            {/* Active Cases */}
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Active Cases</Text>
-
-              {activeCases.map((caseItem) => (
-                <TouchableOpacity key={caseItem.id} style={styles.caseCard}>
-                  <View style={styles.caseHeader}>
-                    <View style={[styles.caseStatusBadge, { backgroundColor: caseItem.statusColor }]}>
-                      <Text style={styles.caseStatusText}>{caseItem.status}</Text>
-                    </View>
-                  </View>
-                  
-                  <Text style={styles.caseTitle}>{caseItem.title}</Text>
-                  
-                  <View style={styles.caseMetaRow}>
-                    <View style={styles.caseMeta}>
-                      <Text style={styles.caseMetaIcon}>👥</Text>
-                      <Text style={styles.caseMetaText}>Partner: {caseItem.partner}</Text>
-                    </View>
-                  </View>
-                  
-                  <View style={styles.caseMetaRow}>
-                    <View style={styles.caseMeta}>
-                      <Text style={styles.caseMetaIcon}>📅</Text>
-                      <Text style={styles.caseMetaText}>Last Update: {caseItem.lastUpdate}</Text>
-                    </View>
-                  </View>
-
-                  <View style={styles.caseActions}>
-                    <TouchableOpacity style={styles.caseActionButton}>
-                      <Text style={styles.caseActionText}>{caseItem.description}</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.caseActionButtonSecondary}>
-                      <Text style={styles.caseActionTextSecondary}>Escalate</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.viewDetailsButton}>
-                      <Text style={styles.viewDetailsText}>View Details ↗</Text>
-                    </TouchableOpacity>
-                  </View>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </>
-        )}
-
-        {activeTab === 'Secure Messages' && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Secure Messages</Text>
-            <View style={styles.emptyInvites}>
-              <Text style={styles.emptyIcon}>✉️</Text>
-              <Text style={styles.emptyText}>No secure messages yet</Text>
-            </View>
-          </View>
-        )}
-      </ScrollView>
-    </View>
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen 
+        name="LawyerDashboardHome"
+        component={LawyersListScreen} 
+      />
+      <Stack.Screen 
+        name="LawyerAnalytics" 
+        component={LawyerAnalyticsDashboardScreen} 
+      />
+      <Stack.Screen 
+        name="PerformanceReports" 
+        component={PerformanceReportsScreen} 
+      />
+      <Stack.Screen 
+        name="ImpactTracking" 
+        component={ImpactTrackingScreen} 
+      />
+    </Stack.Navigator>
   );
 }
 
+
+// BODIES STACK (Lawyers List)
+function BodiesStackNavigator() {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen 
+        name="LawyerSelection" 
+        component={LawyerSelectionScreen}
+      />
+    </Stack.Navigator>
+  );
+}
+
+
+// CASES STACK
+function CasesStackNavigator() {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen 
+        name="CasesList" 
+        component={CasesScreen} 
+      />
+      <Stack.Screen 
+        name="MyCases" 
+        component={MyCasesScreen} 
+      />
+      <Stack.Screen 
+        name="CaseDetail" 
+        component={CaseDetailScreen} 
+      />
+      <Stack.Screen 
+        name="CreateCase" 
+        component={CreateCaseScreen} 
+      />
+      <Stack.Screen 
+        name="BookConsultation" 
+        component={BookConsultationScreen} 
+      />
+      <Stack.Screen 
+        name="ConsultationsList" 
+        component={MyConsultationsScreen} 
+      />
+    </Stack.Navigator>
+  );
+}
+
+
+// INBOX STACK (Messages)
+function InboxStackNavigator() {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen 
+        name="MessagesList" 
+        component={InboxScreen} 
+      />
+      <Stack.Screen 
+        name="ConversationsList" 
+        component={ConversationsListScreen} 
+      />
+      <Stack.Screen 
+        name="ConversationDetail" 
+        component={ConversationDetailScreen} 
+      />
+    </Stack.Navigator>
+  );
+}
+
+
+// DISCOVER STACK (Profile)
+function DiscoverStackNavigator() {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen 
+        name="LawyerProfileMain" 
+        component={LawyerProfileScreen}
+      />
+      <Stack.Screen 
+        name="EditProfile" 
+        component={EditProfileScreen} 
+      />
+      <Stack.Screen 
+        name="Settings" 
+        component={SettingsScreen} 
+      />
+      <Stack.Screen 
+        name="Notifications" 
+        component={NotificationsScreen} 
+      />
+      <Stack.Screen 
+        name="SubmitFeedback" 
+        component={SubmitFeedbackScreen} 
+      />
+      <Stack.Screen 
+        name="TakeSurvey" 
+        component={TakeSurveyScreen} 
+      />
+      <Stack.Screen 
+        name="QnASessions" 
+        component={QnASessionsScreen} 
+      />
+      <Stack.Screen 
+        name="QnASessionDetail" 
+        component={QnASessionDetailScreen} 
+      />
+      <Stack.Screen 
+        name="PointsHistory" 
+        component={PlaceholderScreen} 
+      />
+      <Stack.Screen 
+        name="RegisterLawyer" 
+        component={PlaceholderScreen} 
+      />
+    </Stack.Navigator>
+  );
+}
+
+
+// MAIN TAB NAVIGATOR
+function TabNavigator() {
+  return (
+    <Tab.Navigator
+      screenOptions={({ route }) => ({
+        tabBarIcon: ({ focused, color, size }) => {
+          let iconName;
+
+          if (route.name === 'Home') {
+            iconName = focused ? 'home' : 'home-outline';
+          } else if (route.name === 'Bodies') {
+            iconName = focused ? 'briefcase' : 'briefcase-outline';
+          } else if (route.name === 'Cases') {
+            iconName = focused ? 'list' : 'list-outline';
+          } else if (route.name === 'Inbox') {
+            iconName = focused ? 'chatbubble' : 'chatbubble-outline';
+          } else if (route.name === 'Discover') {
+            iconName = focused ? 'person' : 'person-outline';
+          }
+
+          return <Ionicons name={iconName} size={size} color={color} />;
+        },
+        tabBarActiveTintColor: '#4CAF50',
+        tabBarInactiveTintColor: '#666666',
+        tabBarStyle: {
+          backgroundColor: '#FFFFFF',
+          borderTopWidth: 1,
+          borderTopColor: '#E0E0E0',
+          height: 65,
+          paddingBottom: 8,
+          paddingTop: 8,
+        },
+        tabBarLabelStyle: {
+          fontSize: 11,
+          fontWeight: '500',
+        },
+        headerShown: false,
+      })}
+    >
+      <Tab.Screen 
+        name="Home" 
+        component={HomeStackNavigator}
+        options={{
+          tabBarLabel: 'Home',
+        }}
+      />
+      
+      <Tab.Screen 
+        name="Bodies" 
+        component={BodiesStackNavigator}
+        options={{
+          tabBarLabel: 'Bodies',
+        }}
+      />
+      
+      <Tab.Screen 
+        name="Cases" 
+        component={CasesStackNavigator}
+        options={{
+          tabBarLabel: 'Cases',
+        }}
+      />
+      
+      <Tab.Screen 
+        name="Inbox" 
+        component={InboxStackNavigator}
+        options={{
+          tabBarLabel: 'Inbox',
+        }}
+      />
+      
+      <Tab.Screen 
+        name="Discover" 
+        component={DiscoverStackNavigator}
+        options={{
+          tabBarLabel: 'Discover',
+        }}
+      />
+    </Tab.Navigator>
+  );
+}
+
+
+// ✅ REMOVED NavigationContainer - it's handled by AppNavigator
+const LawyerDashboardScreen = () => {
+  return <TabNavigator />;
+};
+
+
+// ✅ STYLES FOR PLACEHOLDER
 const styles = StyleSheet.create({
-  container: {
+  placeholder: {
     flex: 1,
-    backgroundColor: '#F2F2F7',
-  },
-  header: {
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 20,
-    paddingTop: 50,
-    paddingBottom: 15,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E5EA',
-  },
-  headerTitle: {
-    fontSize: 28,
-    fontWeight: 'bold',
-  },
-  headerRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 15,
-  },
-  notificationButton: {
-    padding: 5,
-  },
-  notificationIcon: {
-    fontSize: 24,
-  },
-  avatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#AF52DE',
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: '#F5F5F5',
   },
-  avatarText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  content: {
-    flex: 1,
-  },
-  tabsContainer: {
-    flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
-    padding: 15,
-    gap: 10,
-    marginBottom: 15,
-  },
-  tab: {
-    flex: 1,
-    paddingVertical: 10,
-    borderRadius: 8,
-    backgroundColor: '#F2F2F7',
-    alignItems: 'center',
-  },
-  tabActive: {
-    backgroundColor: '#0066FF',
-  },
-  tabText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#3C3C43',
-  },
-  tabTextActive: {
-    color: '#FFFFFF',
-  },
-  section: {
-    backgroundColor: '#FFFFFF',
-    padding: 20,
-    marginBottom: 15,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-  },
-  badge: {
-    backgroundColor: '#FF3B30',
-    borderRadius: 12,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    marginLeft: 10,
-  },
-  badgeText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: 'bold',
-  },
-  emptyInvites: {
-    alignItems: 'center',
-    paddingVertical: 40,
-  },
-  emptyIcon: {
-    fontSize: 48,
-    marginBottom: 12,
-  },
-  emptyText: {
-    fontSize: 16,
-    color: '#8E8E93',
-  },
-  inviteCard: {
-    flexDirection: 'row',
-    backgroundColor: '#F2F2F7',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 12,
-  },
-  inviteIcon: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: '#FFFFFF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  inviteIconText: {
+  placeholderText: {
     fontSize: 24,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 10,
   },
-  inviteContent: {
-    flex: 1,
-  },
-  inviteTitle: {
+  placeholderSubtext: {
     fontSize: 16,
-    fontWeight: 'bold',
-    marginBottom: 4,
-  },
-  inviteDate: {
-    fontSize: 13,
-    color: '#8E8E93',
-    marginBottom: 8,
-  },
-  inviteStatusRow: {
-    marginBottom: 8,
-  },
-  statusBadge: {
-    alignSelf: 'flex-start',
-    backgroundColor: '#FF9500',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 10,
-  },
-  statusText: {
-    color: '#fff',
-    fontSize: 11,
-    fontWeight: 'bold',
-  },
-  inviteDescription: {
-    fontSize: 13,
-    color: '#3C3C43',
-    lineHeight: 18,
-    marginBottom: 12,
-  },
-  inviteActions: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  declineButton: {
-    flex: 1,
-    paddingVertical: 10,
-    borderRadius: 8,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E5E5EA',
-    alignItems: 'center',
-  },
-  declineButtonText: {
-    color: '#FF3B30',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  acceptButton: {
-    flex: 1,
-    paddingVertical: 10,
-    borderRadius: 8,
-    backgroundColor: '#0066FF',
-    alignItems: 'center',
-  },
-  acceptButtonText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  caseCard: {
-    backgroundColor: '#F2F2F7',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 12,
-  },
-  caseHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  caseStatusBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 10,
-  },
-  caseStatusText: {
-    color: '#fff',
-    fontSize: 11,
-    fontWeight: 'bold',
-  },
-  caseTitle: {
-    fontSize: 17,
-    fontWeight: 'bold',
-    marginBottom: 12,
-  },
-  caseMetaRow: {
-    marginBottom: 8,
-  },
-  caseMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  caseMetaIcon: {
-    fontSize: 14,
-    marginRight: 6,
-  },
-  caseMetaText: {
-    fontSize: 13,
-    color: '#3C3C43',
-  },
-  caseActions: {
-    flexDirection: 'row',
-    gap: 8,
-    marginTop: 12,
-  },
-  caseActionButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E5E5EA',
-  },
-  caseActionText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#3C3C43',
-  },
-  caseActionButtonSecondary: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E5E5EA',
-  },
-  caseActionTextSecondary: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#FF3B30',
-  },
-  viewDetailsButton: {
-    flex: 1,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-    backgroundColor: '#0066FF',
-    alignItems: 'center',
-  },
-  viewDetailsText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#fff',
+    color: '#666',
   },
 });
+
+
+export default LawyerDashboardScreen;

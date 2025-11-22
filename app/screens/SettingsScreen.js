@@ -1,16 +1,21 @@
 import { useState } from 'react';
 import {
-    Alert,
-    Modal,
-    ScrollView,
-    StyleSheet,
-    Switch,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View
+  Alert,
+  Modal,
+  Platform,
+  SafeAreaView,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Switch,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from 'react-native';
+import { supabase } from '../../supabase';
 import { ProfileService } from '../../utils/profileService';
+
 
 export default function SettingsScreen({ user, profile, onBack, onLogout }) {
   const [notificationPrefs, setNotificationPrefs] = useState(
@@ -36,11 +41,13 @@ export default function SettingsScreen({ user, profile, onBack, onLogout }) {
   });
   const [passwordError, setPasswordError] = useState('');
 
+
   const handleNotificationToggle = async (key) => {
     const newPrefs = { ...notificationPrefs, [key]: !notificationPrefs[key] };
     setNotificationPrefs(newPrefs);
     await ProfileService.updateNotificationPreferences(user.id, newPrefs);
   };
+
 
   const handlePrivacyToggle = async (key) => {
     const newSettings = { ...privacySettings, [key]: !privacySettings[key] };
@@ -48,8 +55,8 @@ export default function SettingsScreen({ user, profile, onBack, onLogout }) {
     await ProfileService.updatePrivacySettings(user.id, newSettings);
   };
 
+
   const validatePassword = (password) => {
-    // Password validation rules
     if (password.length < 8) {
       return 'Password must be at least 8 characters long';
     }
@@ -68,23 +75,21 @@ export default function SettingsScreen({ user, profile, onBack, onLogout }) {
     return null;
   };
 
+
   const handleChangePassword = async () => {
     setPasswordError('');
 
-    // Validate passwords match
     if (passwords.newPassword !== passwords.confirmPassword) {
       setPasswordError('Passwords do not match');
       return;
     }
 
-    // Validate password strength
     const validationError = validatePassword(passwords.newPassword);
     if (validationError) {
       setPasswordError(validationError);
       return;
     }
 
-    // Change password
     const result = await ProfileService.changePassword(passwords.newPassword);
 
     if (result.success) {
@@ -98,6 +103,7 @@ export default function SettingsScreen({ user, profile, onBack, onLogout }) {
       setPasswordError(result.error);
     }
   };
+
 
   const handleDeleteAccount = () => {
     Alert.alert(
@@ -122,220 +128,258 @@ export default function SettingsScreen({ user, profile, onBack, onLogout }) {
     );
   };
 
+
+  const handleLogout = async () => {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      onLogout();
+    } catch (error) {
+      console.error('Logout error:', error);
+      Alert.alert('Error', 'Failed to logout. Please try again.');
+    }
+  };
+
+
   return (
-    <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={onBack} style={styles.backButton}>
-          <Text style={styles.backIcon}>←</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Settings</Text>
-        <View style={{ width: 40 }} />
+    <SafeAreaView style={styles.safeArea}>
+      <View style={styles.container}>
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity onPress={onBack} style={styles.backButton}>
+            <Text style={styles.backIcon}>←</Text>
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Settings</Text>
+          <View style={{ width: 40 }} />
+        </View>
+
+
+        <ScrollView style={styles.scrollView}>
+          {/* Notifications Section */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>🔔 Notifications</Text>
+            
+            <View style={styles.settingItem}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Petition Updates</Text>
+                <Text style={styles.settingDescription}>
+                  Get notified about updates on petitions you follow
+                </Text>
+              </View>
+              <Switch
+                value={notificationPrefs.petition_updates}
+                onValueChange={() => handleNotificationToggle('petition_updates')}
+                trackColor={{ false: '#E5E5EA', true: '#0066FF' }}
+              />
+            </View>
+
+
+            <View style={styles.settingItem}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Comments</Text>
+                <Text style={styles.settingDescription}>
+                  Get notified when someone comments on your petitions
+                </Text>
+              </View>
+              <Switch
+                value={notificationPrefs.comments}
+                onValueChange={() => handleNotificationToggle('comments')}
+                trackColor={{ false: '#E5E5EA', true: '#0066FF' }}
+              />
+            </View>
+
+
+            <View style={styles.settingItem}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Votes</Text>
+                <Text style={styles.settingDescription}>
+                  Get notified when someone votes on your petitions
+                </Text>
+              </View>
+              <Switch
+                value={notificationPrefs.votes}
+                onValueChange={() => handleNotificationToggle('votes')}
+                trackColor={{ false: '#E5E5EA', true: '#0066FF' }}
+              />
+            </View>
+
+
+            <View style={styles.settingItem}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Messages</Text>
+                <Text style={styles.settingDescription}>
+                  Get notified about new messages
+                </Text>
+              </View>
+              <Switch
+                value={notificationPrefs.messages}
+                onValueChange={() => handleNotificationToggle('messages')}
+                trackColor={{ false: '#E5E5EA', true: '#0066FF' }}
+              />
+            </View>
+          </View>
+
+
+          {/* Privacy Section */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>🔒 Privacy</Text>
+            
+            <View style={styles.settingItem}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Show Email</Text>
+                <Text style={styles.settingDescription}>
+                  Make your email visible to other users
+                </Text>
+              </View>
+              <Switch
+                value={privacySettings.show_email}
+                onValueChange={() => handlePrivacyToggle('show_email')}
+                trackColor={{ false: '#E5E5EA', true: '#0066FF' }}
+              />
+            </View>
+
+
+            <View style={styles.settingItem}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Show Phone</Text>
+                <Text style={styles.settingDescription}>
+                  Make your phone number visible to other users
+                </Text>
+              </View>
+              <Switch
+                value={privacySettings.show_phone}
+                onValueChange={() => handlePrivacyToggle('show_phone')}
+                trackColor={{ false: '#E5E5EA', true: '#0066FF' }}
+              />
+            </View>
+
+
+            <View style={styles.settingItem}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Show Activity</Text>
+                <Text style={styles.settingDescription}>
+                  Make your activity visible on your profile
+                </Text>
+              </View>
+              <Switch
+                value={privacySettings.show_activity}
+                onValueChange={() => handlePrivacyToggle('show_activity')}
+                trackColor={{ false: '#E5E5EA', true: '#0066FF' }}
+              />
+            </View>
+          </View>
+
+
+          {/* Account Section */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>👤 Account</Text>
+            
+            <TouchableOpacity
+              style={styles.actionItem}
+              onPress={() => setShowPasswordModal(true)}
+            >
+              <Text style={styles.actionLabel}>Change Password</Text>
+              <Text style={styles.actionIcon}>→</Text>
+            </TouchableOpacity>
+
+
+            <TouchableOpacity style={styles.actionItem} onPress={handleLogout}>
+              <Text style={styles.actionLabel}>Logout</Text>
+              <Text style={styles.actionIcon}>→</Text>
+            </TouchableOpacity>
+
+
+            <TouchableOpacity
+              style={[styles.actionItem, styles.dangerAction]}
+              onPress={handleDeleteAccount}
+            >
+              <Text style={styles.dangerLabel}>Delete Account</Text>
+              <Text style={styles.actionIcon}>→</Text>
+            </TouchableOpacity>
+          </View>
+
+
+          {/* App Info */}
+          <View style={styles.appInfo}>
+            <Text style={styles.appInfoText}>Civic Engagement App</Text>
+            <Text style={styles.appInfoText}>Version 1.0.0</Text>
+          </View>
+        </ScrollView>
+
+
+        {/* Change Password Modal */}
+        <Modal
+          visible={showPasswordModal}
+          animationType="slide"
+          transparent={true}
+          onRequestClose={() => setShowPasswordModal(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Change Password</Text>
+                <TouchableOpacity onPress={() => setShowPasswordModal(false)}>
+                  <Text style={styles.modalClose}>×</Text>
+                </TouchableOpacity>
+              </View>
+
+
+              <View style={styles.modalBody}>
+                <Text style={styles.passwordRequirements}>
+                  Password must contain:
+                  {'\n'}• At least 8 characters
+                  {'\n'}• One uppercase letter
+                  {'\n'}• One lowercase letter
+                  {'\n'}• One number
+                  {'\n'}• One special character (!@#$%^&*)
+                </Text>
+
+
+                <TextInput
+                  style={styles.passwordInput}
+                  placeholder="New Password"
+                  value={passwords.newPassword}
+                  onChangeText={(text) => setPasswords(prev => ({ ...prev, newPassword: text }))}
+                  secureTextEntry
+                />
+
+
+                <TextInput
+                  style={styles.passwordInput}
+                  placeholder="Confirm Password"
+                  value={passwords.confirmPassword}
+                  onChangeText={(text) => setPasswords(prev => ({ ...prev, confirmPassword: text }))}
+                  secureTextEntry
+                />
+
+
+                {passwordError ? (
+                  <Text style={styles.errorText}>{passwordError}</Text>
+                ) : null}
+
+
+                <TouchableOpacity
+                  style={styles.changePasswordButton}
+                  onPress={handleChangePassword}
+                >
+                  <Text style={styles.changePasswordButtonText}>Change Password</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
       </View>
-
-      <ScrollView style={styles.scrollView}>
-        {/* Notifications Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>🔔 Notifications</Text>
-          
-          <View style={styles.settingItem}>
-            <View style={styles.settingInfo}>
-              <Text style={styles.settingLabel}>Petition Updates</Text>
-              <Text style={styles.settingDescription}>
-                Get notified about updates on petitions you follow
-              </Text>
-            </View>
-            <Switch
-              value={notificationPrefs.petition_updates}
-              onValueChange={() => handleNotificationToggle('petition_updates')}
-              trackColor={{ false: '#E5E5EA', true: '#0066FF' }}
-            />
-          </View>
-
-          <View style={styles.settingItem}>
-            <View style={styles.settingInfo}>
-              <Text style={styles.settingLabel}>Comments</Text>
-              <Text style={styles.settingDescription}>
-                Get notified when someone comments on your petitions
-              </Text>
-            </View>
-            <Switch
-              value={notificationPrefs.comments}
-              onValueChange={() => handleNotificationToggle('comments')}
-              trackColor={{ false: '#E5E5EA', true: '#0066FF' }}
-            />
-          </View>
-
-          <View style={styles.settingItem}>
-            <View style={styles.settingInfo}>
-              <Text style={styles.settingLabel}>Votes</Text>
-              <Text style={styles.settingDescription}>
-                Get notified when someone votes on your petitions
-              </Text>
-            </View>
-            <Switch
-              value={notificationPrefs.votes}
-              onValueChange={() => handleNotificationToggle('votes')}
-              trackColor={{ false: '#E5E5EA', true: '#0066FF' }}
-            />
-          </View>
-
-          <View style={styles.settingItem}>
-            <View style={styles.settingInfo}>
-              <Text style={styles.settingLabel}>Messages</Text>
-              <Text style={styles.settingDescription}>
-                Get notified about new messages
-              </Text>
-            </View>
-            <Switch
-              value={notificationPrefs.messages}
-              onValueChange={() => handleNotificationToggle('messages')}
-              trackColor={{ false: '#E5E5EA', true: '#0066FF' }}
-            />
-          </View>
-        </View>
-
-        {/* Privacy Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>🔒 Privacy</Text>
-          
-          <View style={styles.settingItem}>
-            <View style={styles.settingInfo}>
-              <Text style={styles.settingLabel}>Show Email</Text>
-              <Text style={styles.settingDescription}>
-                Make your email visible to other users
-              </Text>
-            </View>
-            <Switch
-              value={privacySettings.show_email}
-              onValueChange={() => handlePrivacyToggle('show_email')}
-              trackColor={{ false: '#E5E5EA', true: '#0066FF' }}
-            />
-          </View>
-
-          <View style={styles.settingItem}>
-            <View style={styles.settingInfo}>
-              <Text style={styles.settingLabel}>Show Phone</Text>
-              <Text style={styles.settingDescription}>
-                Make your phone number visible to other users
-              </Text>
-            </View>
-            <Switch
-              value={privacySettings.show_phone}
-              onValueChange={() => handlePrivacyToggle('show_phone')}
-              trackColor={{ false: '#E5E5EA', true: '#0066FF' }}
-            />
-          </View>
-
-          <View style={styles.settingItem}>
-            <View style={styles.settingInfo}>
-              <Text style={styles.settingLabel}>Show Activity</Text>
-              <Text style={styles.settingDescription}>
-                Make your activity visible on your profile
-              </Text>
-            </View>
-            <Switch
-              value={privacySettings.show_activity}
-              onValueChange={() => handlePrivacyToggle('show_activity')}
-              trackColor={{ false: '#E5E5EA', true: '#0066FF' }}
-            />
-          </View>
-        </View>
-
-        {/* Account Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>👤 Account</Text>
-          
-          <TouchableOpacity
-            style={styles.actionItem}
-            onPress={() => setShowPasswordModal(true)}
-          >
-            <Text style={styles.actionLabel}>Change Password</Text>
-            <Text style={styles.actionIcon}>→</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.actionItem} onPress={onLogout}>
-            <Text style={styles.actionLabel}>Logout</Text>
-            <Text style={styles.actionIcon}>→</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.actionItem, styles.dangerAction]}
-            onPress={handleDeleteAccount}
-          >
-            <Text style={styles.dangerLabel}>Delete Account</Text>
-            <Text style={styles.actionIcon}>→</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* App Info */}
-        <View style={styles.appInfo}>
-          <Text style={styles.appInfoText}>Civic Engagement App</Text>
-          <Text style={styles.appInfoText}>Version 1.0.0</Text>
-        </View>
-      </ScrollView>
-
-      {/* Change Password Modal */}
-      <Modal
-        visible={showPasswordModal}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setShowPasswordModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Change Password</Text>
-              <TouchableOpacity onPress={() => setShowPasswordModal(false)}>
-                <Text style={styles.modalClose}>×</Text>
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.modalBody}>
-              <Text style={styles.passwordRequirements}>
-                Password must contain:
-                {'\n'}• At least 8 characters
-                {'\n'}• One uppercase letter
-                {'\n'}• One lowercase letter
-                {'\n'}• One number
-                {'\n'}• One special character (!@#$%^&*)
-              </Text>
-
-              <TextInput
-                style={styles.passwordInput}
-                placeholder="New Password"
-                value={passwords.newPassword}
-                onChangeText={(text) => setPasswords(prev => ({ ...prev, newPassword: text }))}
-                secureTextEntry
-              />
-
-              <TextInput
-                style={styles.passwordInput}
-                placeholder="Confirm Password"
-                value={passwords.confirmPassword}
-                onChangeText={(text) => setPasswords(prev => ({ ...prev, confirmPassword: text }))}
-                secureTextEntry
-              />
-
-              {passwordError ? (
-                <Text style={styles.errorText}>{passwordError}</Text>
-              ) : null}
-
-              <TouchableOpacity
-                style={styles.changePasswordButton}
-                onPress={handleChangePassword}
-              >
-                <Text style={styles.changePasswordButtonText}>Change Password</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-    </View>
+    </SafeAreaView>
   );
 }
 
+
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
+  },
   container: {
     flex: 1,
     backgroundColor: '#F2F2F7',
@@ -343,7 +387,7 @@ const styles = StyleSheet.create({
   header: {
     backgroundColor: '#FFFFFF',
     paddingHorizontal: 20,
-    paddingTop: 50,
+    paddingTop: 12,
     paddingBottom: 15,
     flexDirection: 'row',
     alignItems: 'center',

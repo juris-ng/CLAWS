@@ -1,825 +1,256 @@
-import React, { useEffect, useState } from 'react';
-import {
-  Alert,
-  Animated,
-  FlatList,
-  Platform,
-  RefreshControl,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View
-} from 'react-native';
-import { supabase } from '../../supabase';
-import { AdminService } from '../../utils/adminService';
-import { NetworkMonitor } from '../../utils/networkMonitor';
-import { NotificationService } from '../../utils/notificationService';
-import { OfflineCache } from '../../utils/offlineCache';
-import { PointsService } from '../../utils/pointsService';
-import { ResponsiveUtils } from '../../utils/responsive';
-import AdminNavigator from './admin/AdminNavigator';
-import CreatePetitionScreen from './CreatePetitionScreen';
-import FollowersScreen from './FollowersScreen';
-import FollowingScreen from './FollowingScreen';
-import LeaderboardScreen from './LeaderboardScreen';
+import { Ionicons } from '@expo/vector-icons';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { NavigationContainer } from '@react-navigation/native';
+import { createStackNavigator } from '@react-navigation/stack';
+
+// Main Tab Screens
+import DiscoverScreen from './DiscoverScreen';
+import HomeScreen from './HomeScreen';
 import NotificationsScreen from './NotificationsScreen';
-import PetitionDetailEnhanced from './PetitionDetailEnhanced';
 import ProfileScreen from './ProfileScreen';
 import SearchScreen from './SearchScreen';
+
+// Petition Screens
+import CreatePetitionScreen from './CreatePetitionScreen';
+import ManagePetitions from './ManagePetitions';
+import PetitionComposerScreen from './PetitionComposerScreen';
+import PetitionDetailEnhanced from './PetitionDetailEnhanced';
+import PetitionDetailScreen from './PetitionDetailScreen';
+
+// Profile & Settings
+import AnonymousSettingsScreen from './AnonymousSettingsScreen';
+import EditProfileScreen from './EditProfileScreen';
+import SettingsScreen from './SettingsScreen';
+
+// Points & Leaderboard
+import LeaderboardScreen from './LeaderboardScreen';
+import LeaderboardsScreen from './LeaderboardsScreen';
+import PointsHistoryScreen from './PointsHistoryScreen';
+import PointsRedemptionScreen from './PointsRedemptionScreen';
+import ReputationLeaderboardScreen from './ReputationLeaderboardScreen';
+
+// Messaging & Social
+import ConversationDetailScreen from './ConversationDetailScreen';
+import ConversationsListScreen from './ConversationsListScreen';
+import FollowersScreen from './FollowersScreen';
+import FollowingScreen from './FollowingScreen';
+import InboxScreen from './InboxScreen';
+
+// Whistleblowing
+import CreateWhistleblowScreen from './CreateWhistleblowScreen';
+import WhistleblowDetailScreen from './WhistleblowDetailScreen';
+import WhistleblowListScreen from './WhistleblowListScreen';
+
+// Ideas & Resources
+import CreateResourceScreen from './CreateResourceScreen';
+import IdeasComposerScreen from './IdeasComposerScreen';
+import IdeasScreen from './IdeasScreen';
+import ResourceSharingScreen from './ResourceSharingScreen';
+
+// Bodies Directory
+import BodiesDirectory from './BodiesDirectory';
+import BodiesListScreen from './BodiesListScreen';
+import BodyProfileScreen from './BodyProfileScreen';
+
+// Lawyers
+import BookConsultationScreen from './BookConsultationScreen';
+import LawyerProfileScreen from './LawyerProfileScreen';
+import LawyerSelectionScreen from './LawyerSelectionScreen';
+import LawyersListScreen from './LawyersListScreen';
+
+// Cases & Legal
+import CaseDetailScreen from './CaseDetailScreen';
+import CreateCaseScreen from './CreateCaseScreen';
+import MyCasesScreen from './MyCasesScreen';
+import MyConsultationsScreen from './MyConsultationsScreen';
+
+// Appeals & Surveys
+import MemberSurveysScreen from './MemberSurveysScreen';
+import MyAppealsScreen from './MyAppealsScreen';
+import SubmitFeedbackScreen from './SubmitFeedbackScreen';
+import TakeSurveyScreen from './TakeSurveyScreen';
+
+// QnA Sessions
+import QnASessionDetailScreen from './QnASessionDetailScreen';
+import QnASessionsScreen from './QnASessionsScreen';
+
+// Onboarding & User Profile
 import UserProfileViewScreen from './UserProfileViewScreen';
 
-export default function MemberHomeScreen({ user, profile: initialProfile, onLogout }) {
-  const [loading, setLoading] = useState(false);
-  const [petitions, setPetitions] = useState([]);
-  const [profile, setProfile] = useState(initialProfile);
-  const [userStats, setUserStats] = useState(null);
-  const [notificationCount, setNotificationCount] = useState(0);
-  const [showNotifications, setShowNotifications] = useState(false);
-  const [selectedPetition, setSelectedPetition] = useState(null);
-  const [showCreatePetition, setShowCreatePetition] = useState(false);
-  const [showSearch, setShowSearch] = useState(false);
-  const [showProfile, setShowProfile] = useState(false);
-  const [showAdmin, setShowAdmin] = useState(false);
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [showLeaderboard, setShowLeaderboard] = useState(false);
-  const [showUserProfile, setShowUserProfile] = useState(false);
-  const [selectedUserProfile, setSelectedUserProfile] = useState(null);
-  const [showFollowers, setShowFollowers] = useState(false);
-  const [showFollowing, setShowFollowing] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
-  const [isOnline, setIsOnline] = useState(true);
-  
-  // Animation values
-  const scrollY = new Animated.Value(0);
-  const cardAnimations = petitions.map(() => new Animated.Value(0));
+// Analytics & Activity
+import ActivityHistoryScreen from './ActivityHistoryScreen';
+import ImpactTrackingScreen from './ImpactTrackingScreen';
+import PerformanceReportsScreen from './PerformanceReportsScreen';
 
-  useEffect(() => {
-    loadData();
-  }, []);
+const Tab = createBottomTabNavigator();
+const Stack = createStackNavigator();
 
-  const loadData = async () => {
-    setRefreshing(true);
-    await Promise.all([
-      loadPetitions(),
-      loadUserStats(),
-      loadNotificationCount(),
-      refreshProfile(),
-      checkAdminStatus()
-    ]);
-    setRefreshing(false);
-  };
-
-  const loadPetitions = async () => {
-    setLoading(true);
-    
-    // Check if online
-    const networkStatus = await NetworkMonitor.checkConnection();
-    setIsOnline(networkStatus.isConnected);
-    
-    if (networkStatus.isConnected) {
-      // Load from network
-      const { data, error } = await supabase
-        .from('petitions')
-        .select(`
-          *,
-          member:members(full_name, avatar_url),
-          votes:petition_votes(count),
-          comments:comments(count)
-        `)
-        .eq('status', 'active')
-        .order('created_at', { ascending: false })
-        .limit(20);
-
-      if (!error && data) {
-        setPetitions(data);
-        // Cache the data
-        await OfflineCache.cachePetitions(data);
-      }
-    } else {
-      // Load from cache if offline
-      const cachedPetitions = await OfflineCache.getCachedPetitions();
-      if (cachedPetitions) {
-        setPetitions(cachedPetitions);
-        Alert.alert('📵 Offline Mode', 'Showing cached petitions. Some data may be outdated.');
-      } else {
-        Alert.alert('No Connection', 'No cached data available. Please connect to the internet.');
-      }
-    }
-    
-    setLoading(false);
-  };
-
-  const loadUserStats = async () => {
-    const stats = await PointsService.getMemberStats(user.id);
-    setUserStats(stats);
-  };
-
-  const loadNotificationCount = async () => {
-    const unreadCount = await NotificationService.getUnreadCount(user.id);
-    setNotificationCount(unreadCount);
-  };
-
-  const refreshProfile = async () => {
-    const { data } = await supabase
-      .from('members')
-      .select('*')
-      .eq('id', user.id)
-      .single();
-    
-    if (data) {
-      setProfile(data);
-      // Cache profile
-      await OfflineCache.cacheUserProfile(data);
-    }
-  };
-
-  const checkAdminStatus = async () => {
-    const adminStatus = await AdminService.isAdmin(user.id);
-    setIsAdmin(adminStatus);
-  };
-
-  // Screen Navigation
-  if (showNotifications) {
-    return (
-      <NotificationsScreen
-        user={user}
-        profile={profile}
-        onBack={() => {
-          setShowNotifications(false);
-          loadNotificationCount();
-        }}
-      />
-    );
-  }
-
-  if (showCreatePetition) {
-    return (
-      <CreatePetitionScreen
-        user={user}
-        profile={profile}
-        onBack={() => setShowCreatePetition(false)}
-        onSuccess={(petition) => {
-          setShowCreatePetition(false);
-          loadData();
-          Alert.alert('Success! 🎉', 'Your petition has been created and you earned +5 points!');
-        }}
-      />
-    );
-  }
-
-  if (showSearch) {
-    return (
-      <SearchScreen
-        user={user}
-        profile={profile}
-        onBack={() => setShowSearch(false)}
-      />
-    );
-  }
-
-  if (showProfile) {
-    return (
-      <ProfileScreen
-        user={user}
-        profile={profile}
-        onBack={() => {
-          setShowProfile(false);
-          loadData();
-        }}
-        onLogout={onLogout}
-        onViewFollowers={() => {
-          setShowProfile(false);
-          setShowFollowers(true);
-        }}
-        onViewFollowing={() => {
-          setShowProfile(false);
-          setShowFollowing(true);
-        }}
-      />
-    );
-  }
-
-  if (showAdmin) {
-    return (
-      <AdminNavigator
-        user={user}
-        profile={profile}
-        onBack={() => {
-          setShowAdmin(false);
-          loadData();
-        }}
-      />
-    );
-  }
-
-  if (showLeaderboard) {
-    return (
-      <LeaderboardScreen
-        user={user}
-        profile={profile}
-        onBack={() => setShowLeaderboard(false)}
-        onViewProfile={(targetUser) => {
-          setSelectedUserProfile(targetUser);
-          setShowLeaderboard(false);
-          setShowUserProfile(true);
-        }}
-      />
-    );
-  }
-
-  if (showUserProfile && selectedUserProfile) {
-    return (
-      <UserProfileViewScreen
-        user={user}
-        profile={profile}
-        targetUser={selectedUserProfile}
-        onBack={() => {
-          setShowUserProfile(false);
-          setSelectedUserProfile(null);
-        }}
-      />
-    );
-  }
-
-  if (showFollowers) {
-    return (
-      <FollowersScreen
-        userId={user.id}
-        onBack={() => setShowFollowers(false)}
-        onViewUser={(targetUser) => {
-          setSelectedUserProfile(targetUser);
-          setShowFollowers(false);
-          setShowUserProfile(true);
-        }}
-      />
-    );
-  }
-
-  if (showFollowing) {
-    return (
-      <FollowingScreen
-        userId={user.id}
-        onBack={() => setShowFollowing(false)}
-        onViewUser={(targetUser) => {
-          setSelectedUserProfile(targetUser);
-          setShowFollowing(false);
-          setShowUserProfile(true);
-        }}
-      />
-    );
-  }
-
-  if (selectedPetition) {
-    return (
-      <PetitionDetailEnhanced
-        petition={selectedPetition}
-        user={user}
-        profile={profile}
-        onBack={() => {
-          setSelectedPetition(null);
-          loadData();
-        }}
-      />
-    );
-  }
-
-  const renderPetition = ({ item, index }) => {
-    const cardWidth = ResponsiveUtils.isTablet 
-      ? ResponsiveUtils.getCardWidth(2, 16) - 8
-      : '100%';
-
-    return (
-      <Animated.View 
-        style={[
-          styles.petitionCardWrapper,
-          { 
-            width: cardWidth,
-            opacity: cardAnimations[index] || 1,
-          }
-        ]}
-      >
-        <TouchableOpacity
-          style={styles.petitionCard}
-          onPress={() => setSelectedPetition(item)}
-          activeOpacity={0.7}
-        >
-          <View style={styles.petitionHeader}>
-            <View style={styles.avatarSmall}>
-              <Text style={styles.avatarSmallText}>
-                {item.member?.full_name?.[0]?.toUpperCase() || '?'}
-              </Text>
-            </View>
-            <View style={styles.petitionHeaderInfo}>
-              <Text style={styles.petitionAuthor} numberOfLines={1}>
-                {item.member?.full_name || 'Anonymous'}
-              </Text>
-              <Text style={styles.petitionTime}>
-                {new Date(item.created_at).toLocaleDateString('en-US', { 
-                  month: 'short', 
-                  day: 'numeric' 
-                })}
-              </Text>
-            </View>
-          </View>
-
-          <Text style={styles.petitionTitle} numberOfLines={2}>{item.title}</Text>
-          <Text style={styles.petitionDescription} numberOfLines={2}>
-            {item.description}
-          </Text>
-
-          <View style={styles.petitionFooter}>
-            <View style={styles.petitionStat}>
-              <Text style={styles.statIcon}>👍</Text>
-              <Text style={styles.statText}>{item.votes?.[0]?.count || 0}</Text>
-            </View>
-            <View style={styles.petitionStat}>
-              <Text style={styles.statIcon}>💬</Text>
-              <Text style={styles.statText}>{item.comments?.[0]?.count || 0}</Text>
-            </View>
-          </View>
-        </TouchableOpacity>
-      </Animated.View>
-    );
-  };
-
-  const numColumns = ResponsiveUtils.getListColumns();
-
+// HOME STACK
+function HomeStackNavigator() {
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#0066FF" />
-      
-      {/* Compact Header */}
-      <Animated.View 
-        style={[
-          styles.header,
-          {
-            shadowOpacity: scrollY.interpolate({
-              inputRange: [0, 50],
-              outputRange: [0, 0.15],
-              extrapolate: 'clamp',
-            }),
-          }
-        ]}
-      >
-        <View style={styles.headerLeft}>
-          <Text style={styles.greeting}>Hello, {profile?.full_name?.split(' ')[0]}! 👋</Text>
-          <View style={styles.subGreetingRow}>
-            <Text style={styles.subGreeting}>Level {userStats?.level || 1} • {userStats?.total_points || 0} pts</Text>
-            {isAdmin && (
-              <View style={styles.adminBadge}>
-                <Text style={styles.adminBadgeText}>ADMIN</Text>
-              </View>
-            )}
-            {!isOnline && (
-              <View style={styles.offlineIndicator}>
-                <Text style={styles.offlineText}>📵 Offline</Text>
-              </View>
-            )}
-          </View>
-        </View>
-        <View style={styles.headerButtons}>
-          <TouchableOpacity
-            style={styles.iconButton}
-            onPress={() => setShowNotifications(true)}
-          >
-            <Text style={styles.iconButtonText}>🔔</Text>
-            {notificationCount > 0 && (
-              <View style={styles.notificationBadge}>
-                <Text style={styles.badgeText}>
-                  {notificationCount > 9 ? '9+' : notificationCount}
-                </Text>
-              </View>
-            )}
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={styles.iconButton} 
-            onPress={() => setShowProfile(true)}
-          >
-            <Text style={styles.iconButtonText}>👤</Text>
-          </TouchableOpacity>
-        </View>
-      </Animated.View>
-
-      {/* Quick Actions Bar */}
-      <View style={styles.quickActionsBar}>
-        <TouchableOpacity 
-          style={styles.quickActionBtn}
-          onPress={() => setShowCreatePetition(true)}
-        >
-          <Text style={styles.quickActionIcon}>✍️</Text>
-          <Text style={styles.quickActionLabel}>Create</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity 
-          style={styles.quickActionBtn}
-          onPress={() => setShowSearch(true)}
-        >
-          <Text style={styles.quickActionIcon}>🔍</Text>
-          <Text style={styles.quickActionLabel}>Search</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity 
-          style={styles.quickActionBtn}
-          onPress={() => setShowLeaderboard(true)}
-        >
-          <Text style={styles.quickActionIcon}>🏆</Text>
-          <Text style={styles.quickActionLabel}>Leaderboard</Text>
-        </TouchableOpacity>
-        
-        {isAdmin && (
-          <TouchableOpacity 
-            style={[styles.quickActionBtn, styles.adminActionBtn]}
-            onPress={() => setShowAdmin(true)}
-          >
-            <Text style={styles.quickActionIcon}>🛡️</Text>
-            <Text style={[styles.quickActionLabel, styles.adminActionLabel]}>Admin</Text>
-          </TouchableOpacity>
-        )}
-      </View>
-
-      {/* Feed */}
-      <FlatList
-        data={petitions}
-        renderItem={renderPetition}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.feedContainer}
-        numColumns={numColumns}
-        key={`list-${numColumns}`}
-        columnWrapperStyle={numColumns > 1 ? styles.row : null}
-        refreshControl={
-          <RefreshControl 
-            refreshing={refreshing} 
-            onRefresh={loadData}
-            tintColor="#0066FF"
-            colors={['#0066FF']}
-            progressBackgroundColor="#FFFFFF"
-          />
-        }
-        showsVerticalScrollIndicator={false}
-        onScroll={Animated.event(
-          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-          { useNativeDriver: false }
-        )}
-        scrollEventThrottle={16}
-        ListHeaderComponent={
-          <View style={styles.feedHeader}>
-            <Text style={styles.feedTitle}>Active Petitions</Text>
-            <TouchableOpacity onPress={() => setShowSearch(true)}>
-              <Text style={styles.seeAll}>See All →</Text>
-            </TouchableOpacity>
-          </View>
-        }
-        ListEmptyComponent={() => (
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyIcon}>📋</Text>
-            <Text style={styles.emptyTitle}>No petitions yet</Text>
-            <TouchableOpacity 
-              style={styles.createFirstButton}
-              onPress={() => setShowCreatePetition(true)}
-            >
-              <Text style={styles.createFirstButtonText}>Create the First One</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-      />
-
-      {/* Bottom Navigation */}
-      <View style={styles.bottomNav}>
-        <TouchableOpacity style={styles.navItem}>
-          <Text style={[styles.navIcon, styles.navIconActive]}>🏠</Text>
-          <Text style={[styles.navLabel, styles.navLabelActive]}>Home</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity 
-          style={styles.navItem}
-          onPress={() => setShowSearch(true)}
-        >
-          <Text style={styles.navIcon}>🔍</Text>
-          <Text style={styles.navLabel}>Explore</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity 
-          style={styles.navItemCenter}
-          onPress={() => setShowCreatePetition(true)}
-        >
-          <View style={styles.createButton}>
-            <Text style={styles.createButtonIcon}>+</Text>
-          </View>
-        </TouchableOpacity>
-        
-        <TouchableOpacity 
-          style={styles.navItem}
-          onPress={() => setShowLeaderboard(true)}
-        >
-          <Text style={styles.navIcon}>🏆</Text>
-          <Text style={styles.navLabel}>Leaderboard</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity 
-          style={styles.navItem}
-          onPress={() => setShowProfile(true)}
-        >
-          <Text style={styles.navIcon}>👤</Text>
-          <Text style={styles.navLabel}>Profile</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
+    <Stack.Navigator>
+      <Stack.Screen name="Feed" component={HomeScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="PetitionDetail" component={PetitionDetailScreen} options={{ title: 'Petition' }} />
+      <Stack.Screen name="PetitionDetailEnhanced" component={PetitionDetailEnhanced} options={{ title: 'Petition Details' }} />
+      <Stack.Screen name="CreatePetition" component={CreatePetitionScreen} options={{ title: 'Create Petition' }} />
+      <Stack.Screen name="PetitionComposer" component={PetitionComposerScreen} options={{ title: 'Compose Petition' }} />
+      <Stack.Screen name="ManagePetitions" component={ManagePetitions} options={{ title: 'My Petitions' }} />
+      <Stack.Screen name="BodyProfile" component={BodyProfileScreen} options={{ title: 'Organization' }} />
+      <Stack.Screen name="UserProfile" component={UserProfileViewScreen} options={{ title: 'Profile' }} />
+    </Stack.Navigator>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F5F5F5',
-  },
-  header: {
-    backgroundColor: '#0066FF',
-    paddingHorizontal: ResponsiveUtils.spacing(2),
-    paddingTop: ResponsiveUtils.isIPhoneX() ? 44 : Platform.OS === 'android' ? 24 : 20,
-    paddingBottom: ResponsiveUtils.spacing(1.5),
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  headerLeft: {
-    flex: 1,
-  },
-  greeting: {
-    fontSize: ResponsiveUtils.fontSize(18),
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  subGreetingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 2,
-    gap: 8,
-  },
-  subGreeting: {
-    fontSize: ResponsiveUtils.fontSize(12),
-    color: 'rgba(255, 255, 255, 0.9)',
-  },
-  adminBadge: {
-    backgroundColor: '#FFD700',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  adminBadgeText: {
-    fontSize: ResponsiveUtils.fontSize(10),
-    fontWeight: 'bold',
-    color: '#0066FF',
-  },
-  offlineIndicator: {
-    backgroundColor: '#FF9500',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  offlineText: {
-    fontSize: ResponsiveUtils.fontSize(10),
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-  },
-  headerButtons: {
-    flexDirection: 'row',
-    gap: ResponsiveUtils.spacing(1),
-  },
-  iconButton: {
-    width: ResponsiveUtils.moderateScale(36),
-    height: ResponsiveUtils.moderateScale(36),
-    borderRadius: ResponsiveUtils.moderateScale(18),
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    position: 'relative',
-  },
-  iconButtonText: {
-    fontSize: ResponsiveUtils.fontSize(18),
-  },
-  notificationBadge: {
-    position: 'absolute',
-    top: -2,
-    right: -2,
-    backgroundColor: '#FF3B30',
-    borderRadius: 8,
-    minWidth: 16,
-    height: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 4,
-  },
-  badgeText: {
-    color: '#FFFFFF',
-    fontSize: ResponsiveUtils.fontSize(10),
-    fontWeight: 'bold',
-  },
-  quickActionsBar: {
-    flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
-    paddingVertical: ResponsiveUtils.spacing(1.5),
-    paddingHorizontal: ResponsiveUtils.spacing(2),
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E5EA',
-    gap: ResponsiveUtils.spacing(1.5),
-  },
-  quickActionBtn: {
-    alignItems: 'center',
-    paddingHorizontal: ResponsiveUtils.spacing(1.5),
-  },
-  adminActionBtn: {
-    backgroundColor: '#FFF3E0',
-    paddingVertical: 4,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-  },
-  quickActionIcon: {
-    fontSize: ResponsiveUtils.fontSize(24),
-    marginBottom: 4,
-  },
-  quickActionLabel: {
-    fontSize: ResponsiveUtils.fontSize(11),
-    fontWeight: '600',
-    color: '#3C3C43',
-  },
-  adminActionLabel: {
-    color: '#FF9500',
-  },
-  feedContainer: {
-    paddingBottom: 80,
-  },
-  row: {
-    justifyContent: 'space-between',
-    paddingHorizontal: ResponsiveUtils.spacing(2),
-  },
-  feedHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: ResponsiveUtils.spacing(2),
-    paddingVertical: ResponsiveUtils.spacing(1.5),
-    backgroundColor: '#FFFFFF',
-  },
-  feedTitle: {
-    fontSize: ResponsiveUtils.fontSize(16),
-    fontWeight: 'bold',
-    color: '#1C1C1E',
-  },
-  seeAll: {
-    fontSize: ResponsiveUtils.fontSize(13),
-    color: '#0066FF',
-    fontWeight: '600',
-  },
-  petitionCardWrapper: {
-    marginBottom: 1,
-  },
-  petitionCard: {
-    backgroundColor: '#FFFFFF',
-    padding: ResponsiveUtils.spacing(1.5),
-  },
-  petitionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: ResponsiveUtils.spacing(1),
-  },
-  avatarSmall: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#0066FF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: ResponsiveUtils.spacing(1),
-  },
-  avatarSmallText: {
-    color: '#FFFFFF',
-    fontSize: ResponsiveUtils.fontSize(14),
-    fontWeight: 'bold',
-  },
-  petitionHeaderInfo: {
-    flex: 1,
-  },
-  petitionAuthor: {
-    fontSize: ResponsiveUtils.fontSize(14),
-    fontWeight: '600',
-    color: '#1C1C1E',
-  },
-  petitionTime: {
-    fontSize: ResponsiveUtils.fontSize(11),
-    color: '#8E8E93',
-  },
-  petitionTitle: {
-    fontSize: ResponsiveUtils.fontSize(15),
-    fontWeight: '600',
-    color: '#1C1C1E',
-    marginBottom: 4,
-    lineHeight: 20,
-  },
-  petitionDescription: {
-    fontSize: ResponsiveUtils.fontSize(13),
-    color: '#3C3C43',
-    lineHeight: 18,
-    marginBottom: ResponsiveUtils.spacing(1),
-  },
-  petitionFooter: {
-    flexDirection: 'row',
-    gap: ResponsiveUtils.spacing(2),
-    paddingTop: ResponsiveUtils.spacing(1),
-    borderTopWidth: 1,
-    borderTopColor: '#F2F2F7',
-  },
-  petitionStat: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  statIcon: {
-    fontSize: ResponsiveUtils.fontSize(14),
-  },
-  statText: {
-    fontSize: ResponsiveUtils.fontSize(13),
-    color: '#8E8E93',
-    fontWeight: '500',
-  },
-  emptyState: {
-    alignItems: 'center',
-    paddingVertical: ResponsiveUtils.spacing(7.5),
-    paddingHorizontal: ResponsiveUtils.spacing(4),
-  },
-  emptyIcon: {
-    fontSize: ResponsiveUtils.fontSize(48),
-    marginBottom: ResponsiveUtils.spacing(1.5),
-  },
-  emptyTitle: {
-    fontSize: ResponsiveUtils.fontSize(16),
-    fontWeight: '600',
-    color: '#3C3C43',
-    marginBottom: ResponsiveUtils.spacing(2),
-  },
-  createFirstButton: {
-    backgroundColor: '#0066FF',
-    paddingVertical: ResponsiveUtils.spacing(1.25),
-    paddingHorizontal: ResponsiveUtils.spacing(2.5),
-    borderRadius: 20,
-  },
-  createFirstButtonText: {
-    color: '#FFFFFF',
-    fontSize: ResponsiveUtils.fontSize(14),
-    fontWeight: '600',
-  },
-  bottomNav: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
-    paddingVertical: ResponsiveUtils.spacing(1),
-    paddingBottom: ResponsiveUtils.isIPhoneX() ? 20 : ResponsiveUtils.spacing(1),
-    borderTopWidth: 1,
-    borderTopColor: '#E5E5EA',
-  },
-  navItem: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 4,
-  },
-  navItemCenter: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: -20,
-  },
-  navIcon: {
-    fontSize: ResponsiveUtils.fontSize(22),
-    marginBottom: 2,
-    opacity: 0.6,
-  },
-  navIconActive: {
-    opacity: 1,
-  },
-  navLabel: {
-    fontSize: ResponsiveUtils.fontSize(10),
-    color: '#8E8E93',
-    fontWeight: '500',
-  },
-  navLabelActive: {
-    color: '#0066FF',
-    fontWeight: '600',
-  },
-  createButton: {
-    width: ResponsiveUtils.moderateScale(56),
-    height: ResponsiveUtils.moderateScale(56),
-    borderRadius: ResponsiveUtils.moderateScale(28),
-    backgroundColor: '#0066FF',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  createButtonIcon: {
-    fontSize: ResponsiveUtils.fontSize(28),
-    color: '#FFFFFF',
-    fontWeight: '300',
-  },
-});
+// BODIES STACK
+function BodiesStackNavigator() {
+  return (
+    <Stack.Navigator>
+      <Stack.Screen name="BodiesFeed" component={BodiesListScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="BodiesDirectory" component={BodiesDirectory} options={{ title: 'Directory' }} />
+      <Stack.Screen name="BodyProfile" component={BodyProfileScreen} options={{ title: 'Organization' }} />
+      <Stack.Screen name="LawyersList" component={LawyersListScreen} options={{ title: 'Lawyers' }} />
+      <Stack.Screen name="LawyerProfile" component={LawyerProfileScreen} options={{ title: 'Lawyer' }} />
+    </Stack.Navigator>
+  );
+}
+
+// CASES STACK
+function CasesStackNavigator() {
+  return (
+    <Stack.Navigator>
+      <Stack.Screen name="CasesFeed" component={MyCasesScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="CaseDetail" component={CaseDetailScreen} options={{ title: 'Case Details' }} />
+      <Stack.Screen name="CreateCase" component={CreateCaseScreen} options={{ title: 'New Case' }} />
+      <Stack.Screen name="LawyerSelection" component={LawyerSelectionScreen} options={{ title: 'Find Lawyer' }} />
+      <Stack.Screen name="BookConsultation" component={BookConsultationScreen} options={{ title: 'Book Consultation' }} />
+      <Stack.Screen name="MyConsultations" component={MyConsultationsScreen} options={{ title: 'Consultations' }} />
+    </Stack.Navigator>
+  );
+}
+
+// INBOX STACK
+function InboxStackNavigator() {
+  return (
+    <Stack.Navigator>
+      <Stack.Screen name="InboxMain" component={InboxScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="ConversationsList" component={ConversationsListScreen} options={{ title: 'Messages' }} />
+      <Stack.Screen name="ConversationDetail" component={ConversationDetailScreen} options={{ title: 'Chat' }} />
+      <Stack.Screen name="Notifications" component={NotificationsScreen} options={{ title: 'Notifications' }} />
+    </Stack.Navigator>
+  );
+}
+
+// DISCOVER STACK
+function DiscoverStackNavigator() {
+  return (
+    <Stack.Navigator>
+      <Stack.Screen name="DiscoverFeed" component={DiscoverScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="Search" component={SearchScreen} options={{ title: 'Search' }} />
+      <Stack.Screen name="PetitionDetail" component={PetitionDetailScreen} options={{ title: 'Petition' }} />
+      <Stack.Screen name="Profile" component={ProfileScreen} options={{ title: 'Profile' }} />
+      <Stack.Screen name="EditProfile" component={EditProfileScreen} options={{ title: 'Edit Profile' }} />
+      <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: 'Settings' }} />
+      <Stack.Screen name="AnonymousSettings" component={AnonymousSettingsScreen} options={{ title: 'Anonymous Mode' }} />
+      <Stack.Screen name="Leaderboard" component={LeaderboardScreen} options={{ title: 'Leaderboard' }} />
+      <Stack.Screen name="Leaderboards" component={LeaderboardsScreen} options={{ title: 'Rankings' }} />
+      <Stack.Screen name="ReputationLeaderboard" component={ReputationLeaderboardScreen} options={{ title: 'Reputation' }} />
+      <Stack.Screen name="PointsHistory" component={PointsHistoryScreen} options={{ title: 'Points History' }} />
+      <Stack.Screen name="PointsRedemption" component={PointsRedemptionScreen} options={{ title: 'Redeem Points' }} />
+      <Stack.Screen name="MyAppeals" component={MyAppealsScreen} options={{ title: 'My Appeals' }} />
+      <Stack.Screen name="Followers" component={FollowersScreen} options={{ title: 'Followers' }} />
+      <Stack.Screen name="Following" component={FollowingScreen} options={{ title: 'Following' }} />
+      <Stack.Screen name="ActivityHistory" component={ActivityHistoryScreen} options={{ title: 'Activity' }} />
+      <Stack.Screen name="WhistleblowList" component={WhistleblowListScreen} options={{ title: 'Whistleblowing' }} />
+      <Stack.Screen name="WhistleblowDetail" component={WhistleblowDetailScreen} options={{ title: 'Report Details' }} />
+      <Stack.Screen name="CreateWhistleblow" component={CreateWhistleblowScreen} options={{ title: 'Report Issue' }} />
+      <Stack.Screen name="Ideas" component={IdeasScreen} options={{ title: 'Ideas' }} />
+      <Stack.Screen name="IdeasComposer" component={IdeasComposerScreen} options={{ title: 'Share Idea' }} />
+      <Stack.Screen name="ResourceSharing" component={ResourceSharingScreen} options={{ title: 'Resources' }} />
+      <Stack.Screen name="CreateResource" component={CreateResourceScreen} options={{ title: 'Share Resource' }} />
+      <Stack.Screen name="Surveys" component={MemberSurveysScreen} options={{ title: 'Surveys' }} />
+      <Stack.Screen name="TakeSurvey" component={TakeSurveyScreen} options={{ title: 'Survey' }} />
+      <Stack.Screen name="SubmitFeedback" component={SubmitFeedbackScreen} options={{ title: 'Feedback' }} />
+      <Stack.Screen name="QnASessions" component={QnASessionsScreen} options={{ title: 'Q&A Sessions' }} />
+      <Stack.Screen name="QnASessionDetail" component={QnASessionDetailScreen} options={{ title: 'Q&A' }} />
+      <Stack.Screen name="ImpactTracking" component={ImpactTrackingScreen} options={{ title: 'Impact' }} />
+      <Stack.Screen name="PerformanceReports" component={PerformanceReportsScreen} options={{ title: 'Reports' }} />
+    </Stack.Navigator>
+  );
+}
+
+// MAIN TAB NAVIGATOR
+function TabNavigator() {
+  return (
+    <Tab.Navigator
+      screenOptions={({ route }) => ({
+        tabBarIcon: ({ focused, color, size }) => {
+          let iconName;
+
+          if (route.name === 'Home') {
+            iconName = focused ? 'home' : 'home-outline';
+          } else if (route.name === 'Bodies') {
+            iconName = focused ? 'business' : 'business-outline';
+          } else if (route.name === 'Cases') {
+            iconName = focused ? 'briefcase' : 'briefcase-outline';
+          } else if (route.name === 'Inbox') {
+            iconName = focused ? 'mail' : 'mail-outline';
+          } else if (route.name === 'Discover') {
+            iconName = focused ? 'search' : 'search-outline';
+          }
+
+          return <Ionicons name={iconName} size={size} color={color} />;
+        },
+        tabBarActiveTintColor: '#007AFF',
+        tabBarInactiveTintColor: '#8E8E93',
+        tabBarStyle: {
+          backgroundColor: '#FFFFFF',
+          borderTopWidth: 1,
+          borderTopColor: '#E5E5EA',
+          height: 60,
+          paddingBottom: 8,
+          paddingTop: 8,
+        },
+        tabBarLabelStyle: {
+          fontSize: 11,
+          fontWeight: '500',
+        },
+        headerShown: false,
+      })}
+    >
+      <Tab.Screen 
+        name="Home" 
+        component={HomeStackNavigator}
+      />
+      
+      <Tab.Screen 
+        name="Bodies" 
+        component={BodiesStackNavigator}
+      />
+      
+      <Tab.Screen 
+        name="Cases" 
+        component={CasesStackNavigator}
+      />
+      
+      <Tab.Screen 
+        name="Inbox" 
+        component={InboxStackNavigator}
+      />
+      
+      <Tab.Screen 
+        name="Discover" 
+        component={DiscoverStackNavigator}
+      />
+    </Tab.Navigator>
+  );
+}
+
+const MemberHomeScreen = () => {
+  return (
+    <NavigationContainer independent={true}>
+      <TabNavigator />
+    </NavigationContainer>
+  );
+};
+
+export default MemberHomeScreen;

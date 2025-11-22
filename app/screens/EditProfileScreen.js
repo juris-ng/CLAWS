@@ -1,18 +1,22 @@
 import { useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Image,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput, TouchableOpacity,
-    View
+  ActivityIndicator,
+  Alert,
+  Image,
+  KeyboardAvoidingView,
+  Platform,
+  SafeAreaView,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { ProfileService } from '../../utils/profileService';
 import { UploadService } from '../../utils/uploadService';
+
 
 export default function EditProfileScreen({ user, profile, onBack, onUpdate }) {
   const [formData, setFormData] = useState({
@@ -25,13 +29,16 @@ export default function EditProfileScreen({ user, profile, onBack, onUpdate }) {
   const [loading, setLoading] = useState(false);
   const [showImageOptions, setShowImageOptions] = useState(false);
 
+
   const handleInputChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
+
   const handleImagePick = async (source) => {
     setShowImageOptions(false);
     let image;
+
 
     if (source === 'camera') {
       image = await UploadService.takePhoto();
@@ -39,10 +46,12 @@ export default function EditProfileScreen({ user, profile, onBack, onUpdate }) {
       image = await UploadService.pickImage();
     }
 
+
     if (image) {
       setAvatarUri(image.uri);
     }
   };
+
 
   const handleSave = async () => {
     if (!formData.full_name.trim()) {
@@ -50,7 +59,9 @@ export default function EditProfileScreen({ user, profile, onBack, onUpdate }) {
       return;
     }
 
+
     setLoading(true);
+
 
     try {
       // Upload avatar if changed
@@ -61,8 +72,10 @@ export default function EditProfileScreen({ user, profile, onBack, onUpdate }) {
         }
       }
 
+
       // Update profile
       const result = await ProfileService.updateProfile(user.id, formData);
+
 
       if (result.success) {
         Alert.alert('Success', 'Profile updated successfully!', [
@@ -77,6 +90,7 @@ export default function EditProfileScreen({ user, profile, onBack, onUpdate }) {
       setLoading(false);
     }
   };
+
 
   const getAvatarDisplay = () => {
     if (avatarUri) {
@@ -95,152 +109,170 @@ export default function EditProfileScreen({ user, profile, onBack, onUpdate }) {
     );
   };
 
-  return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={onBack} style={styles.backButton}>
-          <Text style={styles.backIcon}>←</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Edit Profile</Text>
-        <TouchableOpacity onPress={handleSave} disabled={loading}>
-          <Text style={[styles.saveButton, loading && styles.saveButtonDisabled]}>
-            Save
-          </Text>
-        </TouchableOpacity>
-      </View>
 
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        {/* Avatar Section */}
-        <View style={styles.avatarSection}>
-          {getAvatarDisplay()}
-          <TouchableOpacity
-            style={styles.changePhotoButton}
-            onPress={() => setShowImageOptions(true)}
-          >
-            <Text style={styles.changePhotoText}>Change Photo</Text>
+  return (
+    <SafeAreaView style={styles.safeArea}>
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity onPress={onBack} style={styles.backButton}>
+            <Text style={styles.backIcon}>←</Text>
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Edit Profile</Text>
+          <TouchableOpacity onPress={handleSave} disabled={loading}>
+            <Text style={[styles.saveButton, loading && styles.saveButtonDisabled]}>
+              Save
+            </Text>
           </TouchableOpacity>
         </View>
 
-        {/* Form Fields */}
-        <View style={styles.form}>
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Full Name *</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Enter your full name"
-              value={formData.full_name}
-              onChangeText={(text) => handleInputChange('full_name', text)}
-              maxLength={100}
-            />
-          </View>
 
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Bio</Text>
-            <TextInput
-              style={[styles.input, styles.textArea]}
-              placeholder="Tell us about yourself..."
-              value={formData.bio}
-              onChangeText={(text) => handleInputChange('bio', text)}
-              multiline
-              numberOfLines={4}
-              maxLength={500}
-              textAlignVertical="top"
-            />
-            <Text style={styles.characterCount}>
-              {formData.bio?.length || 0}/500
-            </Text>
-          </View>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Phone Number</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="+254 XXX XXX XXX"
-              value={formData.phone_number}
-              onChangeText={(text) => handleInputChange('phone_number', text)}
-              keyboardType="phone-pad"
-              maxLength={15}
-            />
-          </View>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Location</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="City, Country"
-              value={formData.location}
-              onChangeText={(text) => handleInputChange('location', text)}
-              maxLength={100}
-            />
-          </View>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Email</Text>
-            <TextInput
-              style={[styles.input, styles.inputDisabled]}
-              value={profile?.email}
-              editable={false}
-            />
-            <Text style={styles.helperText}>Email cannot be changed</Text>
-          </View>
-        </View>
-      </ScrollView>
-
-      {/* Image Options Modal */}
-      {showImageOptions && (
-        <View style={styles.modalOverlay}>
-          <View style={styles.imageOptionsModal}>
-            <Text style={styles.modalTitle}>Change Profile Photo</Text>
+        <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+          {/* Avatar Section */}
+          <View style={styles.avatarSection}>
+            {getAvatarDisplay()}
             <TouchableOpacity
-              style={styles.imageOption}
-              onPress={() => handleImagePick('camera')}
+              style={styles.changePhotoButton}
+              onPress={() => setShowImageOptions(true)}
             >
-              <Text style={styles.imageOptionIcon}>📷</Text>
-              <Text style={styles.imageOptionText}>Take Photo</Text>
+              <Text style={styles.changePhotoText}>Change Photo</Text>
             </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.imageOption}
-              onPress={() => handleImagePick('library')}
-            >
-              <Text style={styles.imageOptionIcon}>🖼️</Text>
-              <Text style={styles.imageOptionText}>Choose from Library</Text>
-            </TouchableOpacity>
-            {avatarUri && (
+          </View>
+
+
+          {/* Form Fields */}
+          <View style={styles.form}>
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Full Name *</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Enter your full name"
+                value={formData.full_name}
+                onChangeText={(text) => handleInputChange('full_name', text)}
+                maxLength={100}
+              />
+            </View>
+
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Bio</Text>
+              <TextInput
+                style={[styles.input, styles.textArea]}
+                placeholder="Tell us about yourself..."
+                value={formData.bio}
+                onChangeText={(text) => handleInputChange('bio', text)}
+                multiline
+                numberOfLines={4}
+                maxLength={500}
+                textAlignVertical="top"
+              />
+              <Text style={styles.characterCount}>
+                {formData.bio?.length || 0}/500
+              </Text>
+            </View>
+
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Phone Number</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="+254 XXX XXX XXX"
+                value={formData.phone_number}
+                onChangeText={(text) => handleInputChange('phone_number', text)}
+                keyboardType="phone-pad"
+                maxLength={15}
+              />
+            </View>
+
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Location</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="City, Country"
+                value={formData.location}
+                onChangeText={(text) => handleInputChange('location', text)}
+                maxLength={100}
+              />
+            </View>
+
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Email</Text>
+              <TextInput
+                style={[styles.input, styles.inputDisabled]}
+                value={profile?.email}
+                editable={false}
+              />
+              <Text style={styles.helperText}>Email cannot be changed</Text>
+            </View>
+          </View>
+        </ScrollView>
+
+
+        {/* Image Options Modal */}
+        {showImageOptions && (
+          <View style={styles.modalOverlay}>
+            <View style={styles.imageOptionsModal}>
+              <Text style={styles.modalTitle}>Change Profile Photo</Text>
               <TouchableOpacity
-                style={[styles.imageOption, styles.removeOption]}
-                onPress={() => {
-                  setAvatarUri(null);
-                  setShowImageOptions(false);
-                }}
+                style={styles.imageOption}
+                onPress={() => handleImagePick('camera')}
               >
-                <Text style={styles.imageOptionIcon}>🗑️</Text>
-                <Text style={[styles.imageOptionText, styles.removeText]}>Remove Photo</Text>
+                <Text style={styles.imageOptionIcon}>📷</Text>
+                <Text style={styles.imageOptionText}>Take Photo</Text>
               </TouchableOpacity>
-            )}
-            <TouchableOpacity
-              style={styles.cancelButton}
-              onPress={() => setShowImageOptions(false)}
-            >
-              <Text style={styles.cancelButtonText}>Cancel</Text>
-            </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.imageOption}
+                onPress={() => handleImagePick('library')}
+              >
+                <Text style={styles.imageOptionIcon}>🖼️</Text>
+                <Text style={styles.imageOptionText}>Choose from Library</Text>
+              </TouchableOpacity>
+              {avatarUri && (
+                <TouchableOpacity
+                  style={[styles.imageOption, styles.removeOption]}
+                  onPress={() => {
+                    setAvatarUri(null);
+                    setShowImageOptions(false);
+                  }}
+                >
+                  <Text style={styles.imageOptionIcon}>🗑️</Text>
+                  <Text style={[styles.imageOptionText, styles.removeText]}>Remove Photo</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity
+                style={styles.cancelButton}
+                onPress={() => setShowImageOptions(false)}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
           </View>
-        </View>
-      )}
+        )}
 
-      {loading && (
-        <View style={styles.loadingOverlay}>
-          <ActivityIndicator size="large" color="#0066FF" />
-        </View>
-      )}
-    </KeyboardAvoidingView>
+
+        {loading && (
+          <View style={styles.loadingOverlay}>
+            <ActivityIndicator size="large" color="#0066FF" />
+          </View>
+        )}
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
+
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
+  },
   container: {
     flex: 1,
     backgroundColor: '#F2F2F7',
@@ -248,7 +280,7 @@ const styles = StyleSheet.create({
   header: {
     backgroundColor: '#FFFFFF',
     paddingHorizontal: 20,
-    paddingTop: 50,
+    paddingTop: 15,
     paddingBottom: 15,
     flexDirection: 'row',
     alignItems: 'center',

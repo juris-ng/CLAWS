@@ -1,23 +1,29 @@
 import { useEffect, useState } from 'react';
 import {
-    RefreshControl,
-    ScrollView,
-    SectionList,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  Platform,
+  RefreshControl,
+  SafeAreaView,
+  ScrollView,
+  SectionList,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { ProfileService } from '../../utils/profileService';
+
 
 export default function ActivityHistoryScreen({ user, profile, onBack }) {
   const [activities, setActivities] = useState([]);
   const [loading, setLoading] = useState(false);
   const [filter, setFilter] = useState('all'); // 'all', 'petitions', 'votes', 'comments'
 
+
   useEffect(() => {
     loadActivities();
   }, []);
+
 
   const loadActivities = async () => {
     setLoading(true);
@@ -25,6 +31,7 @@ export default function ActivityHistoryScreen({ user, profile, onBack }) {
     setActivities(groupActivitiesByDate(activityData));
     setLoading(false);
   };
+
 
   const groupActivitiesByDate = (activities) => {
     const grouped = {};
@@ -37,11 +44,13 @@ export default function ActivityHistoryScreen({ user, profile, onBack }) {
         day: 'numeric' 
       });
 
+
       if (!grouped[dateKey]) {
         grouped[dateKey] = [];
       }
       grouped[dateKey].push(activity);
     });
+
 
     // Convert to section list format
     return Object.keys(grouped).map(date => ({
@@ -49,6 +58,7 @@ export default function ActivityHistoryScreen({ user, profile, onBack }) {
       data: grouped[date]
     }));
   };
+
 
   const getActivityIcon = (type) => {
     switch (type) {
@@ -60,6 +70,7 @@ export default function ActivityHistoryScreen({ user, profile, onBack }) {
       default: return '📌';
     }
   };
+
 
   const getActivityTitle = (activity) => {
     switch (activity.activity_type) {
@@ -77,6 +88,7 @@ export default function ActivityHistoryScreen({ user, profile, onBack }) {
         return 'Activity';
     }
   };
+
 
   const getActivityDescription = (activity) => {
     const data = activity.activity_data || {};
@@ -97,12 +109,14 @@ export default function ActivityHistoryScreen({ user, profile, onBack }) {
     }
   };
 
+
   const getTimeAgo = (timestamp) => {
     const now = new Date();
     const time = new Date(timestamp);
     const diffMs = now - time;
     const diffMins = Math.floor(diffMs / 60000);
     const diffHours = Math.floor(diffMs / 3600000);
+
 
     if (diffMins < 1) return 'Just now';
     if (diffMins < 60) return `${diffMins}m ago`;
@@ -112,6 +126,7 @@ export default function ActivityHistoryScreen({ user, profile, onBack }) {
       minute: '2-digit' 
     });
   };
+
 
   const renderActivity = ({ item }) => (
     <View style={styles.activityItem}>
@@ -134,73 +149,86 @@ export default function ActivityHistoryScreen({ user, profile, onBack }) {
     </View>
   );
 
+
   const renderSectionHeader = ({ section: { title } }) => (
     <View style={styles.sectionHeader}>
       <Text style={styles.sectionHeaderText}>{title}</Text>
     </View>
   );
 
+
   return (
-    <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={onBack} style={styles.backButton}>
-          <Text style={styles.backIcon}>←</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Activity History</Text>
-        <View style={{ width: 40 }} />
-      </View>
+    <SafeAreaView style={styles.safeArea}>
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+      <View style={styles.container}>
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity onPress={onBack} style={styles.backButton}>
+            <Text style={styles.backIcon}>←</Text>
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Activity History</Text>
+          <View style={{ width: 40 }} />
+        </View>
 
-      {/* Filter Tabs */}
-      <View style={styles.filterContainer}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          {['all', 'petitions', 'votes', 'comments', 'badges'].map((filterType) => (
-            <TouchableOpacity
-              key={filterType}
-              style={[
-                styles.filterChip,
-                filter === filterType && styles.filterChipActive
-              ]}
-              onPress={() => setFilter(filterType)}
-            >
-              <Text
+
+        {/* Filter Tabs */}
+        <View style={styles.filterContainer}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            {['all', 'petitions', 'votes', 'comments', 'badges'].map((filterType) => (
+              <TouchableOpacity
+                key={filterType}
                 style={[
-                  styles.filterText,
-                  filter === filterType && styles.filterTextActive
+                  styles.filterChip,
+                  filter === filterType && styles.filterChipActive
                 ]}
+                onPress={() => setFilter(filterType)}
               >
-                {filterType.charAt(0).toUpperCase() + filterType.slice(1)}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-      </View>
+                <Text
+                  style={[
+                    styles.filterText,
+                    filter === filterType && styles.filterTextActive
+                  ]}
+                >
+                  {filterType.charAt(0).toUpperCase() + filterType.slice(1)}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
 
-      {/* Activities List */}
-      <SectionList
-        sections={activities}
-        renderItem={renderActivity}
-        renderSectionHeader={renderSectionHeader}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.listContainer}
-        refreshControl={
-          <RefreshControl refreshing={loading} onRefresh={loadActivities} />
-        }
-        ListEmptyComponent={() => (
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyIcon}>📊</Text>
-            <Text style={styles.emptyTitle}>No Activity Yet</Text>
-            <Text style={styles.emptyText}>
-              Your activity history will appear here
-            </Text>
-          </View>
-        )}
-      />
-    </View>
+
+        {/* Activities List */}
+        <SectionList
+          sections={activities}
+          renderItem={renderActivity}
+          renderSectionHeader={renderSectionHeader}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.listContainer}
+          refreshControl={
+            <RefreshControl refreshing={loading} onRefresh={loadActivities} />
+          }
+          ListEmptyComponent={() => (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyIcon}>📊</Text>
+              <Text style={styles.emptyTitle}>No Activity Yet</Text>
+              <Text style={styles.emptyText}>
+                Your activity history will appear here
+              </Text>
+            </View>
+          )}
+        />
+      </View>
+    </SafeAreaView>
   );
 }
 
+
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
+  },
   container: {
     flex: 1,
     backgroundColor: '#F2F2F7',

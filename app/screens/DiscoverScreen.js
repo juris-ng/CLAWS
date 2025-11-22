@@ -1,442 +1,666 @@
-import React, { useEffect, useState } from 'react';
+// screens/discover/DiscoverScreen.js
+import { Ionicons } from '@expo/vector-icons';
+import { useEffect, useState } from 'react';
 import {
-  FlatList, RefreshControl,
+  ActivityIndicator,
+  Platform,
+  SafeAreaView,
   ScrollView,
+  StatusBar,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
-  View
+  View,
 } from 'react-native';
+import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../supabase';
 
-export default function DiscoverScreen({ user, profile }) {
-  const [searchText, setSearchText] = useState('');
-  const [activeFilter, setActiveFilter] = useState('All');
-  const [results, setResults] = useState([]);
-  const [loading, setLoading] = useState(false);
+const COLORS = {
+  primary: '#0047AB',
+  primaryDark: '#003580',
+  primaryLight: '#E3F2FD',
+  black: '#000000',
+  darkGray: '#1A1A1A',
+  mediumGray: '#666666',
+  lightGray: '#E5E5E5',
+  veryLightGray: '#F5F5F5',
+  white: '#FFFFFF',
+  background: '#F8F9FA',
+  success: '#4CAF50',
+  warning: '#FF9800',
+};
 
-  const filters = ['All', 'Bodies', 'Petitions', 'Members', 'Lawyers'];
+export default function DiscoverScreen({ navigation }) {
+  const { user } = useAuth();
+  const [userPoints, setUserPoints] = useState(0);
+  const [bodiesLeaderboard, setBodiesLeaderboard] = useState([]);
+  const [activeTab, setActiveTab] = useState('learn');
+  const [loading, setLoading] = useState(true);
+  const [educationalContent, setEducationalContent] = useState([]);
 
   useEffect(() => {
-    loadResults();
-  }, [activeFilter]);
+    if (user?.id) {
+      fetchUserPoints();
+      fetchBodiesLeaderboard();
+      fetchEducationalContent();
+    }
+  }, [user]);
 
-  const loadResults = async () => {
-    setLoading(true);
+  const fetchUserPoints = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('user_levels')
+        .select('reputation_points, points')
+        .eq('user_id', user.id)
+        .single();
 
-    if (activeFilter === 'All' || activeFilter === 'Bodies') {
-      const { data: bodies } = await supabase
+      if (error && error.code !== 'PGRST116') throw error;
+      setUserPoints(data?.reputation_points || data?.points || 0);
+    } catch (error) {
+      console.error('Error fetching points:', error);
+      setUserPoints(0);
+    }
+  };
+
+  const fetchBodiesLeaderboard = async () => {
+    try {
+      const { data, error } = await supabase
         .from('bodies')
-        .select('*')
-        .order('member_count', { ascending: false })
-        .limit(10);
-      
-      if (bodies) {
-        setResults(prev => [...prev, ...bodies.map(b => ({ ...b, type: 'body' }))]);
-      }
-    }
-
-    if (activeFilter === 'All' || activeFilter === 'Petitions') {
-      const { data: petitions } = await supabase
-        .from('petitions')
-        .select('*')
-        .order('upvotes', { ascending: false })
-        .limit(10);
-      
-      if (petitions) {
-        setResults(prev => [...prev, ...petitions.map(p => ({ ...p, type: 'petition' }))]);
-      }
-    }
-
-    if (activeFilter === 'All' || activeFilter === 'Members') {
-      const { data: members } = await supabase
-        .from('members')
-        .select('*')
+        .select('id, name, logo, rating, points, body_type')
+        .eq('status', 'active')
         .order('points', { ascending: false })
         .limit(10);
-      
-      if (members) {
-        setResults(prev => [...prev, ...members.map(m => ({ ...m, type: 'member' }))]);
-      }
-    }
 
-    if (activeFilter === 'All' || activeFilter === 'Lawyers') {
-      const { data: lawyers } = await supabase
-        .from('lawyers')
-        .select('*')
-        .order('points', { ascending: false })
-        .limit(10);
-      
-      if (lawyers) {
-        setResults(prev => [...prev, ...lawyers.map(l => ({ ...l, type: 'lawyer' }))]);
-      }
+      if (error) throw error;
+      setBodiesLeaderboard(data || []);
+    } catch (error) {
+      console.error('Error fetching bodies leaderboard:', error);
+      setBodiesLeaderboard([]);
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   };
 
-  const renderItem = ({ item }) => {
-    if (item.type === 'body') {
-      return (
-        <TouchableOpacity style={styles.resultCard}>
-          <View style={styles.resultIcon}>
-            <Text style={styles.resultIconText}>🏢</Text>
-          </View>
-          <View style={styles.resultContent}>
-            <Text style={styles.resultTitle}>{item.name}</Text>
-            <Text style={styles.resultSubtitle}>
-              A dedicated group working for sustainable local
-            </Text>
-            <View style={styles.resultMeta}>
-              <Text style={styles.metaText}>👥 {item.member_count} Members</Text>
-              <Text style={styles.metaStatus}>• Active</Text>
-            </View>
-          </View>
-          <TouchableOpacity style={styles.actionButton}>
-            <Text style={styles.actionButtonText}>Join</Text>
-          </TouchableOpacity>
-        </TouchableOpacity>
-      );
-    }
+  const fetchEducationalContent = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('educational_content')
+        .select('id, title, content, source_type, body_id, created_at, category')
+        .eq('status', 'active')
+        .order('created_at', { ascending: false })
+        .limit(20);
 
-    if (item.type === 'petition') {
-      return (
-        <TouchableOpacity style={styles.resultCard}>
-          <View style={[styles.resultIcon, { backgroundColor: '#34C759' }]}>
-            <Text style={styles.resultIconText}>📋</Text>
-          </View>
-          <View style={styles.resultContent}>
-            <Text style={styles.resultTitle}>{item.title}</Text>
-            <Text style={styles.resultSubtitle} numberOfLines={2}>
-              {item.description}
-            </Text>
-            <View style={styles.resultMeta}>
-              <Text style={styles.metaText}>🌱 {item.upvotes} Supporters</Text>
-              <Text style={styles.metaStatus}>• Ongoing</Text>
-            </View>
-          </View>
-          <TouchableOpacity style={[styles.actionButton, styles.supportButton]}>
-            <Text style={styles.actionButtonText}>⚡ Support</Text>
-          </TouchableOpacity>
-        </TouchableOpacity>
-      );
-    }
+      if (error) throw error;
 
-    if (item.type === 'member') {
-      return (
-        <TouchableOpacity style={styles.resultCard}>
-          <View style={styles.resultAvatar}>
-            <Text style={styles.avatarText}>
-              {item.full_name?.charAt(0).toUpperCase() || 'M'}
-            </Text>
-          </View>
-          <View style={styles.resultContent}>
-            <Text style={styles.resultTitle}>{item.full_name}</Text>
-            <Text style={styles.resultSubtitle}>
-              Advocating for digital rights and ethical AI
-            </Text>
-            <View style={styles.resultMeta}>
-              <Text style={styles.metaText}>⚖️ Legal Scholar</Text>
-              <Text style={styles.metaStatus}>• Member since 2022</Text>
-            </View>
-          </View>
-          <TouchableOpacity style={[styles.actionButton, styles.inviteButton]}>
-            <Text style={styles.actionButtonText}>✉️ Invite</Text>
-          </TouchableOpacity>
-        </TouchableOpacity>
-      );
+      if (!data || data.length === 0) {
+        setEducationalContent(getDefaultEducationalContent());
+      } else {
+        setEducationalContent(data);
+      }
+    } catch (error) {
+      console.error('Error fetching educational content:', error);
+      setEducationalContent(getDefaultEducationalContent());
     }
-
-    if (item.type === 'lawyer') {
-      return (
-        <TouchableOpacity style={styles.resultCard}>
-          <View style={[styles.resultIcon, { backgroundColor: '#AF52DE' }]}>
-            <Text style={styles.resultIconText}>⚖️</Text>
-          </View>
-          <View style={styles.resultContent}>
-            <Text style={styles.resultTitle}>{item.full_name}</Text>
-            <Text style={styles.resultSubtitle}>
-              Providing pro-bono legal services for
-            </Text>
-            <View style={styles.resultMeta}>
-              <Text style={styles.metaText}>💼 5 Lawyers</Text>
-              <Text style={styles.metaStatus}>• 20+ Cases</Text>
-            </View>
-          </View>
-          <TouchableOpacity style={[styles.actionButton, styles.referButton]}>
-            <Text style={styles.actionButtonText}>🔗 Refer</Text>
-          </TouchableOpacity>
-        </TouchableOpacity>
-      );
-    }
-
-    return null;
   };
 
-  return (
-    <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Discover</Text>
-      </View>
+  const getDefaultEducationalContent = () => [
+    {
+      id: '1',
+      category: 'Rights',
+      title: 'Know Your Rights as a Member',
+      content: 'Every member has the right to be heard, to access information, and to participate in decision-making processes. Understanding your rights is the first step to active participation.',
+      icon: 'shield-checkmark-outline',
+      source: 'General Knowledge',
+    },
+    {
+      id: '2',
+      category: 'Participation',
+      title: 'The Power of Member Engagement',
+      content: 'Active members shape organizational decisions. Your voice matters. By participating in petitions, discussions, and suggestions, you influence the direction of your body.',
+      icon: 'megaphone-outline',
+      source: 'Success Stories',
+    },
+    {
+      id: '3',
+      category: 'Accountability',
+      title: 'Holding Leadership Accountable',
+      content: 'Transparent governance requires active members who ask questions and demand answers. Review administrative decisions and voice your concerns through our platform.',
+      icon: 'people-outline',
+      source: 'Best Practices',
+    },
+    {
+      id: '4',
+      category: 'Trust',
+      title: 'Building Trust Through Transparency',
+      content: 'Bodies that communicate openly with members build stronger relationships. When you see transparent operations, your participation becomes more meaningful and impactful.',
+      icon: 'ribbon-outline',
+      source: 'General Knowledge',
+    },
+  ];
 
-      {/* Search Bar */}
-      <View style={styles.searchContainer}>
-        <View style={styles.searchBar}>
-          <Text style={styles.searchIcon}>🔍</Text>
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search MAU2..."
-            value={searchText}
-            onChangeText={setSearchText}
-            placeholderTextColor="#8E8E93"
-          />
+  const handleRedeemPoints = () => {
+    navigation.navigate('PointsRedemption');
+  };
+
+  const handleSignLawyer = () => {
+    navigation.navigate('BookConsultation');
+  };
+
+  const renderEducationCard = (item) => (
+    <TouchableOpacity
+      key={item.id}
+      style={styles.educationCard}
+      activeOpacity={0.7}
+      onPress={() => {}}
+    >
+      <View style={styles.cardHeader}>
+        <View style={styles.iconContainer}>
+          <Ionicons name={item.icon} size={24} color={COLORS.primary} />
+        </View>
+        <View style={styles.headerInfo}>
+          <Text style={styles.categoryBadge}>{item.category}</Text>
+          <Text style={styles.sourceText}>{item.source || item.source_type}</Text>
         </View>
       </View>
 
-      {/* Filter Tabs */}
-      <ScrollView 
-        horizontal 
-        showsHorizontalScrollIndicator={false}
-        style={styles.filterScroll}
-        contentContainerStyle={styles.filterContainer}
-      >
-        {filters.map((filter) => (
-          <TouchableOpacity
-            key={filter}
-            style={[
-              styles.filterChip,
-              activeFilter === filter && styles.filterChipActive
-            ]}
-            onPress={() => {
-              setActiveFilter(filter);
-              setResults([]);
-            }}
-          >
-            <Text style={[
-              styles.filterText,
-              activeFilter === filter && styles.filterTextActive
-            ]}>
-              {filter}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
+      <Text style={styles.educationTitle}>{item.title}</Text>
+      <Text style={styles.educationDescription} numberOfLines={2}>
+        {item.content}
+      </Text>
 
-      {/* Results List */}
-      <FlatList
-        data={results}
-        renderItem={renderItem}
-        keyExtractor={(item, index) => `${item.type}-${item.id || index}`}
-        contentContainerStyle={styles.resultsContainer}
-        refreshControl={
-          <RefreshControl refreshing={loading} onRefresh={loadResults} />
-        }
-        ListEmptyComponent={() => (
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyIcon}>🔍</Text>
-            <Text style={styles.emptyText}>No results found</Text>
-            <Text style={styles.emptySubtext}>Try adjusting your search or filters</Text>
+      <View style={styles.readMoreContainer}>
+        <Text style={styles.readMore}>Read more</Text>
+        <Ionicons name="arrow-forward" size={14} color={COLORS.primary} />
+      </View>
+    </TouchableOpacity>
+  );
+
+  const renderLeaderboardBody = ({ item, index }) => {
+    const getMedalIcon = (idx) => {
+      if (idx === 0) return { name: 'trophy', color: '#FFD700' };
+      if (idx === 1) return { name: 'medal', color: '#C0C0C0' };
+      if (idx === 2) return { name: 'medal', color: '#CD7F32' };
+      return null;
+    };
+
+    const medal = getMedalIcon(index);
+
+    return (
+      <TouchableOpacity
+        key={item.id}
+        style={styles.leaderboardRow}
+        onPress={() => navigation.navigate('BodyProfile', { bodyId: item.id })}
+        activeOpacity={0.7}
+      >
+        <View style={styles.rankContainer}>
+          {medal ? (
+            <Ionicons name={medal.name} size={24} color={medal.color} />
+          ) : (
+            <Text style={styles.rankNumber}>#{index + 1}</Text>
+          )}
+        </View>
+
+        <View style={styles.bodyAvatarContainer}>
+          <Text style={styles.bodyAvatarText}>
+            {item.name?.charAt(0).toUpperCase() || 'O'}
+          </Text>
+        </View>
+
+        <View style={styles.bodyInfoContainer}>
+          <Text style={styles.bodyName} numberOfLines={1}>
+            {item.name}
+          </Text>
+          <Text style={styles.bodyType}>{item.body_type || 'Organization'}</Text>
+        </View>
+
+        <View style={styles.statsContainer}>
+          <View style={styles.statItem}>
+            <Ionicons name="star" size={14} color={COLORS.warning} />
+            <Text style={styles.statValue}>{(item.rating || 0).toFixed(1)}</Text>
           </View>
-        )}
-        ListFooterComponent={() => (
-          <TouchableOpacity style={styles.loadMore}>
-            <Text style={styles.loadMoreText}>Load More Results</Text>
+          <View style={styles.statItem}>
+            <Ionicons name="flame" size={14} color={COLORS.primary} />
+            <Text style={styles.statValue}>{(item.points || 0).toLocaleString()}</Text>
+          </View>
+        </View>
+      </TouchableOpacity>
+    );
+  };
+
+  return (
+    <SafeAreaView style={styles.safeArea}>
+      <StatusBar barStyle="dark-content" backgroundColor={COLORS.white} />
+
+      {/* CLEAN WHITE HEADER WITH COMPACT POINTS */}
+      <View style={styles.header}>
+        <View style={styles.headerTop}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.headerTitle}>Discover</Text>
+            <Text style={styles.headerSubtitle}>Learn & Connect</Text>
+          </View>
+          
+          {/* COMPACT POINTS DISPLAY */}
+          <View style={styles.compactPoints}>
+            <View style={styles.pointsBadge}>
+              <Ionicons name="trophy" size={16} color={COLORS.primary} />
+              <Text style={styles.compactPointsValue}>{userPoints.toLocaleString()}</Text>
+            </View>
+            <TouchableOpacity
+              style={styles.compactRedeemButton}
+              onPress={handleRedeemPoints}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.compactRedeemText}>Redeem</Text>
+            </TouchableOpacity>
+          </View>
+
+          <TouchableOpacity
+            onPress={() => navigation.navigate('Settings')}
+            style={styles.settingsButton}
+          >
+            <Ionicons name="settings-outline" size={24} color={COLORS.darkGray} />
           </TouchableOpacity>
-        )}
-      />
-    </View>
+        </View>
+      </View>
+
+      {/* Tab Navigation */}
+      <View style={styles.tabContainer}>
+        <TouchableOpacity
+          style={[styles.tab, activeTab === 'learn' && styles.tabActive]}
+          onPress={() => setActiveTab('learn')}
+          activeOpacity={0.7}
+        >
+          <Ionicons
+            name="book-outline"
+            size={18}
+            color={activeTab === 'learn' ? COLORS.primary : COLORS.mediumGray}
+          />
+          <Text style={[styles.tabText, activeTab === 'learn' && styles.tabTextActive]}>
+            Education
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.tab, activeTab === 'leaderboard' && styles.tabActive]}
+          onPress={() => setActiveTab('leaderboard')}
+          activeOpacity={0.7}
+        >
+          <Ionicons
+            name="trophy-outline"
+            size={18}
+            color={activeTab === 'leaderboard' ? COLORS.primary : COLORS.mediumGray}
+          />
+          <Text style={[styles.tabText, activeTab === 'leaderboard' && styles.tabTextActive]}>
+            Organizations
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Content */}
+      {loading && activeTab === 'leaderboard' ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={COLORS.primary} />
+        </View>
+      ) : (
+        <>
+          {activeTab === 'learn' ? (
+            <ScrollView
+              style={styles.contentContainer}
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.scrollContent}
+            >
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>Active Learning</Text>
+                <Text style={styles.sectionSubtitle}>
+                  Insights from organizations & member activism patterns
+                </Text>
+              </View>
+
+              <View style={styles.infoBox}>
+                <Ionicons name="information-circle-outline" size={18} color={COLORS.primary} />
+                <Text style={styles.infoText}>
+                  AI-powered insights updated from body constitutions
+                </Text>
+              </View>
+
+              {educationalContent.map((item) => renderEducationCard(item))}
+              <View style={{ height: 100 }} />
+            </ScrollView>
+          ) : (
+            <ScrollView
+              style={styles.contentContainer}
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.scrollContent}
+            >
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>Top Organizations</Text>
+                <Text style={styles.sectionSubtitle}>Ranked by engagement & impact</Text>
+              </View>
+
+              {bodiesLeaderboard.length > 0 ? (
+                bodiesLeaderboard.map((body, index) => renderLeaderboardBody({ item: body, index }))
+              ) : (
+                <View style={styles.emptyState}>
+                  <Ionicons name="business-outline" size={48} color={COLORS.lightGray} />
+                  <Text style={styles.emptyText}>No organizations yet</Text>
+                </View>
+              )}
+              <View style={{ height: 100 }} />
+            </ScrollView>
+          )}
+        </>
+      )}
+
+      {/* FAB - Consult Lawyer */}
+      <TouchableOpacity style={styles.fab} onPress={handleSignLawyer} activeOpacity={0.8}>
+        <Ionicons name="briefcase-outline" size={24} color={COLORS.white} />
+      </TouchableOpacity>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  safeArea: {
     flex: 1,
-    backgroundColor: '#F2F2F7',
+    backgroundColor: COLORS.white,
+    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
   },
+
+  // CLEAN WHITE HEADER
   header: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: COLORS.white,
     paddingHorizontal: 20,
-    paddingTop: 50,
-    paddingBottom: 15,
+    paddingTop: 16,
+    paddingBottom: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E5EA',
+    borderBottomColor: COLORS.lightGray,
+  },
+  headerTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
   },
   headerTitle: {
-    fontSize: 34,
-    fontWeight: 'bold',
+    fontSize: 28,
+    fontWeight: '700',
+    color: COLORS.darkGray,
   },
-  searchContainer: {
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 15,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E5EA',
+  headerSubtitle: {
+    fontSize: 14,
+    color: COLORS.mediumGray,
+    marginTop: 4,
   },
-  searchBar: {
+  settingsButton: {
+    padding: 4,
+  },
+
+  // COMPACT POINTS SECTION
+  compactPoints: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F2F2F7',
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    height: 40,
-  },
-  searchIcon: {
-    fontSize: 18,
-    marginRight: 8,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 16,
-    color: '#000',
-  },
-  filterScroll: {
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E5EA',
-  },
-  filterContainer: {
-    paddingHorizontal: 15,
-    paddingVertical: 12,
     gap: 8,
   },
-  filterChip: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+  pointsBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.primaryLight,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderRadius: 20,
-    backgroundColor: '#F2F2F7',
-    marginRight: 8,
+    gap: 6,
   },
-  filterChipActive: {
-    backgroundColor: '#0066FF',
+  compactPointsValue: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: COLORS.primary,
   },
-  filterText: {
+  compactRedeemButton: {
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  compactRedeemText: {
+    color: COLORS.white,
+    fontWeight: '600',
+    fontSize: 13,
+  },
+
+  // Tab Navigation
+  tabContainer: {
+    flexDirection: 'row',
+    backgroundColor: COLORS.white,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.lightGray,
+    paddingHorizontal: 16,
+  },
+  tab: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    gap: 6,
+    borderBottomWidth: 2,
+    borderBottomColor: 'transparent',
+  },
+  tabActive: {
+    borderBottomColor: COLORS.primary,
+  },
+  tabText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#3C3C43',
+    color: COLORS.mediumGray,
   },
-  filterTextActive: {
-    color: '#FFFFFF',
+  tabTextActive: {
+    color: COLORS.primary,
   },
-  resultsContainer: {
-    padding: 15,
-    paddingBottom: 80,
-  },
-  resultCard: {
-    flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#E5E5EA',
-  },
-  resultIcon: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: '#0066FF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  resultIconText: {
-    fontSize: 24,
-  },
-  resultAvatar: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: '#0066FF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  avatarText: {
-    color: '#fff',
-    fontSize: 20,
-    fontWeight: 'bold',
-  },
-  resultContent: {
+
+  // Content
+  loadingContainer: {
     flex: 1,
-    marginRight: 12,
-  },
-  resultTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginBottom: 4,
-  },
-  resultSubtitle: {
-    fontSize: 13,
-    color: '#8E8E93',
-    marginBottom: 8,
-  },
-  resultMeta: {
-    flexDirection: 'row',
+    justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: COLORS.background,
   },
-  metaText: {
-    fontSize: 12,
-    color: '#0066FF',
-    fontWeight: '600',
+  contentContainer: {
+    flex: 1,
+    backgroundColor: COLORS.background,
   },
-  metaStatus: {
-    fontSize: 12,
-    color: '#8E8E93',
-    marginLeft: 4,
-  },
-  actionButton: {
+  scrollContent: {
     paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: '#0066FF',
+    paddingTop: 16,
   },
-  supportButton: {
-    backgroundColor: '#FF9500',
-  },
-  inviteButton: {
-    backgroundColor: '#8E8E93',
-  },
-  referButton: {
-    backgroundColor: '#AF52DE',
-  },
-  actionButtonText: {
-    color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  emptyState: {
-    alignItems: 'center',
-    paddingVertical: 60,
-  },
-  emptyIcon: {
-    fontSize: 48,
+  sectionHeader: {
     marginBottom: 16,
   },
-  emptyText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#3C3C43',
-    marginBottom: 8,
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: COLORS.darkGray,
   },
-  emptySubtext: {
-    fontSize: 14,
-    color: '#8E8E93',
+  sectionSubtitle: {
+    fontSize: 13,
+    color: COLORS.mediumGray,
+    marginTop: 4,
   },
-  loadMore: {
-    backgroundColor: '#FFFFFF',
-    padding: 16,
-    borderRadius: 12,
+  infoBox: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 8,
-    borderWidth: 1,
-    borderColor: '#E5E5EA',
+    backgroundColor: COLORS.primaryLight,
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 16,
+    gap: 8,
   },
-  loadMoreText: {
+  infoText: {
+    fontSize: 12,
+    color: COLORS.primary,
+    fontWeight: '500',
+    flex: 1,
+  },
+
+  // Education Card
+  educationCard: {
+    backgroundColor: COLORS.white,
+    borderRadius: 14,
+    padding: 16,
+    marginBottom: 12,
+    shadowColor: COLORS.black,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+    gap: 12,
+  },
+  iconContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: COLORS.primaryLight,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerInfo: {
+    flex: 1,
+    gap: 2,
+  },
+  categoryBadge: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: COLORS.primary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  sourceText: {
+    fontSize: 11,
+    fontWeight: '500',
+    color: COLORS.mediumGray,
+  },
+  educationTitle: {
     fontSize: 16,
-    color: '#0066FF',
     fontWeight: '600',
+    color: COLORS.darkGray,
+    marginBottom: 8,
+    lineHeight: 22,
+  },
+  educationDescription: {
+    fontSize: 14,
+    color: COLORS.mediumGray,
+    lineHeight: 20,
+    marginBottom: 12,
+  },
+  readMoreContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  readMore: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: COLORS.primary,
+  },
+
+  // Leaderboard
+  leaderboardRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.white,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 8,
+    borderRadius: 12,
+    shadowColor: COLORS.black,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  rankContainer: {
+    width: 36,
+    alignItems: 'center',
+    marginRight: 8,
+  },
+  rankNumber: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: COLORS.mediumGray,
+  },
+  bodyAvatarContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: COLORS.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  bodyAvatarText: {
+    color: COLORS.white,
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  bodyInfoContainer: {
+    flex: 1,
+  },
+  bodyName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.darkGray,
+    marginBottom: 2,
+  },
+  bodyType: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: COLORS.mediumGray,
+    textTransform: 'capitalize',
+  },
+  statsContainer: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  statItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  statValue: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: COLORS.darkGray,
+  },
+
+  // Empty State
+  emptyState: {
+    paddingVertical: 60,
+    alignItems: 'center',
+    gap: 12,
+  },
+  emptyText: {
+    fontSize: 15,
+    color: COLORS.mediumGray,
+  },
+
+  // FAB
+  fab: {
+    position: 'absolute',
+    bottom: 80,
+    right: 20,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: COLORS.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: COLORS.black,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
   },
 });
